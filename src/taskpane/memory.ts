@@ -98,23 +98,33 @@ function read<T>(key: string): T | null {
 /**
  * Sets (or, with null, removes) workbook settings and saves them. Only writes
  * when something actually changes, so the workbook isn't marked as modified
- * needlessly. Throws if Excel couldn't save.
+ * needlessly. Throws if Excel couldn't save, after putting the settings back
+ * as they were (otherwise a retry would see "no change" and never save).
  */
 async function persist(changes: Record<string, unknown>) {
   const settings = Office.context.document.settings;
-  let changed = false;
+  const previous = new Map<string, unknown>();
   for (const [key, value] of Object.entries(changes)) {
-    if (JSON.stringify(read(key)) === JSON.stringify(value ?? null)) continue;
-    changed = true;
+    const before = read(key);
+    if (JSON.stringify(before) === JSON.stringify(value ?? null)) continue;
+    previous.set(key, before);
     if (value === null || value === undefined) settings.remove(key);
     else settings.set(key, value);
   }
-  if (!changed) return;
-  await new Promise<void>((resolve, reject) =>
-    settings.saveAsync((r) =>
-      r.status === Office.AsyncResultStatus.Succeeded ? resolve() : reject(r.error)
-    )
-  );
+  if (!previous.size) return;
+  try {
+    await new Promise<void>((resolve, reject) =>
+      settings.saveAsync((r) =>
+        r.status === Office.AsyncResultStatus.Succeeded ? resolve() : reject(r.error)
+      )
+    );
+  } catch (e) {
+    for (const [key, before] of previous) {
+      if (before === null) settings.remove(key);
+      else settings.set(key, before);
+    }
+    throw e;
+  }
 }
 
 const isDiagram = (d: unknown): d is SavedDiagram => {
