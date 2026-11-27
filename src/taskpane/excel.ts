@@ -78,6 +78,9 @@ import { setupToolbarIconSelects } from "./iconSelect";
 import type { SizeMenu } from "./sizeMenu";
 import { attachChartEdges } from "./chartEdges";
 import type { ChartEdges } from "./chartEdges";
+import { parseNumber } from "./numbers";
+import { errorCode, friendlyError } from "./errors";
+import { showTooltip } from "./tooltip";
 import type {
   ChartModel,
   PopoutAction,
@@ -682,8 +685,7 @@ async function run(action: () => Promise<void>) {
   try {
     await action();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    setStatus(msg, "error");
+    setStatus(friendlyError(e), "error");
   } finally {
     buttons.forEach((b, i) => (b.disabled = wasDisabled[i]));
     $<HTMLButtonElement>("refresh-btn").disabled = !current;
@@ -708,22 +710,39 @@ async function loadFromSelection() {
     ) {
       range = range.getSurroundingRegion();
     }
-    range.load("values,address");
+    // Whole columns or rows selected (e.g. A:C): keep just the part that has
+    // data, instead of loading millions of empty cells.
+    const used = range.getIntersectionOrNullObject(range.worksheet.getUsedRange(true));
+    used.load("values,address");
     await context.sync();
-    applyValues(range.values, range.address);
+    if (used.isNullObject) {
+      throw new Error(
+        "The selected cells are empty. Select your Source, Target and Value columns and try again."
+      );
+    }
+    applyValues(used.values, used.address);
   });
   // The diagram now comes from the selection, so stop following any table.
   await releaseTable();
 }
 
 async function loadFromAddress(fullAddress: string) {
-  await Excel.run(async (context) => {
-    const { sheet, address } = splitAddress(fullAddress);
-    const range = context.workbook.worksheets.getItem(sheet).getRange(address);
-    range.load("values,address");
-    await context.sync();
-    applyValues(range.values, range.address);
-  });
+  try {
+    await Excel.run(async (context) => {
+      const { sheet, address } = splitAddress(fullAddress);
+      const range = context.workbook.worksheets.getItem(sheet).getRange(address);
+      range.load("values,address");
+      await context.sync();
+      applyValues(range.values, range.address);
+    });
+  } catch (e) {
+    if (errorCode(e) === "ItemNotFound") {
+      throw new Error(
+        `Couldn't find ${fullAddress}. Its sheet may have been renamed or deleted; select the cells and load them again.`
+      );
+    }
+    throw e;
+  }
 }
 
 function splitAddress(full: string): { sheet: string; address: string } {
@@ -731,12 +750,6 @@ function splitAddress(full: string): { sheet: string; address: string } {
   let sheet = full.slice(0, i);
   if (sheet.startsWith("'") && sheet.endsWith("'")) sheet = sheet.slice(1, -1).replace(/''/g, "'");
   return { sheet, address: full.slice(i + 1) };
-}
-
-function toNumber(v: unknown): number {
-  if (typeof v === "number") return v;
-  if (typeof v === "string" && v.trim() !== "") return Number(v.replace(/[,\s]/g, ""));
-  return NaN;
 }
 
 function applyValues(values: unknown[][], address: string) {
@@ -751,7 +764,7 @@ function applyValues(values: unknown[][], address: string) {
   values.forEach((row, i) => {
     const source = String(row[0] ?? "").trim();
     const target = String(row[1] ?? "").trim();
-    const value = toNumber(row[2]);
+    const value = parseNumber(row[2]);
     if (!source && !target && (row[2] === "" || row[2] == null)) return; // blank row
     if (i === 0 && !isFinite(value)) {
       headers = [source || "Source", target || "Target", String(row[2] ?? "") || "Value"];
@@ -971,7 +984,10 @@ function captureSettings(): DiagramSettings {
  * (e.g. saved by an older version) falls back to the default.
  */
 function applySettings(saved: Partial<DiagramSettings>) {
-  const s: DiagramSettings = { ...defaultSettings!, ...clone(saved) };
+  // Copied as a whole: defaults filled in for missing settings must not be
+  // shared with defaultSettings, or editing them (e.g. a group's colour, which
+  // is changed in place) would change what Clear goes back to.
+  const s: DiagramSettings = clone({ ...defaultSettings!, ...saved });
   const refill = <V>(map: Map<string, V>, entries: [string, V][]) => {
     map.clear();
     for (const [k, v] of entries ?? []) map.set(k, v);
@@ -1111,22 +1127,22 @@ async function openDiagram(d: SavedDiagram) {
   applySettings(d.settings);
   markOpen(d.id);
   let problem: string | null = null;
-  if (d.source.kind === "table") {
-    if (!(await openTable(d.source))) {
-      problem = `the table "${d.source.name}" is no longer in this workbook`;
-    }
-  } else {
-    try {
+  try {
+    if (d.source.kind === "table") {
+      if (!(await openTable(d.source))) {
+        problem = `The table "${d.source.name}" is no longer in this workbook.`;
+      }
+    } else {
       await loadFromAddress(d.source.address);
-    } catch (e) {
-      problem = `couldn't read ${d.source.address} (${e instanceof Error ? e.message : String(e)})`;
     }
+  } catch (e) {
+    problem = friendlyError(e);
   }
   if (problem) {
     // Back to a clean pane; the diagram stays in Memory, to fix or forget.
     await clearData();
     setStatus(
-      `Couldn't open "${d.name}": ${problem}. You can forget it in the Memory tab.`,
+      `Couldn't open "${d.name}". ${problem} You can forget it in the Memory tab.`,
       "error"
     );
     return;
@@ -1425,19 +1441,13 @@ function draw(opts: { focusSelected?: boolean } = {}) {
             tooltip.hidden = true;
             return;
           }
-          tooltip.innerHTML = h.html;
-          tooltip.hidden = false;
-          // Keep the tooltip inside the chart box.
-          const pad = 12;
-          const w = tooltip.offsetWidth;
-          const ht = tooltip.offsetHeight;
-          // Keep it within the visible (possibly scrolled) part of the chart box.
-          let x = h.x + pad;
-          if (x + w > container.scrollLeft + container.clientWidth) x = h.x - w - pad;
-          let y = h.y + pad;
-          if (y + ht > container.clientHeight) y = h.y - ht - pad;
-          tooltip.style.left = `${Math.max(0, x)}px`;
-          tooltip.style.top = `${Math.max(0, y)}px`;
+          // Within the visible (possibly scrolled, both ways) part of the chart box.
+          showTooltip(tooltip, h.html, h.x, h.y, {
+            left: container.scrollLeft,
+            top: container.scrollTop,
+            right: container.scrollLeft + container.clientWidth,
+            bottom: container.scrollTop + container.clientHeight,
+          });
         },
       },
     });
@@ -2077,10 +2087,20 @@ function industryGroups(id: IndustryId): ColorGroup[] {
   }));
 }
 
-/** The groups a theme starts with (what "Reset groups" goes back to). */
+/** The groups a theme starts with, before colouring (see startingGroups). */
 function defaultGroups(): ColorGroup[] {
   const ind = industryOf();
   return ind ? industryGroups(ind) : builtinGroups(groupSet === "generic");
+}
+
+/** What "Reset groups" goes back to: the theme's groups, in a Generic theme with its colours. */
+function startingGroups(): ColorGroup[] {
+  const start = defaultGroups();
+  if (groupSet === "generic") {
+    const t = GROUP_THEMES.find((x) => x.id === genericTheme);
+    if (t) for (const g of start) if (g.role) g.color = t.colors[g.role] ?? null;
+  }
+  return start;
 }
 
 function toneColor(tone: Tone, theme: ChartTheme): string {
@@ -2186,12 +2206,8 @@ function setupGroupControls() {
     draw();
   };
   $("reset-groups-btn").onclick = () => {
-    groups = defaultGroups();
-    // In a Generic theme, reset to that theme's colours.
-    if (groupSet === "generic") {
-      const t = GROUP_THEMES.find((x) => x.id === genericTheme);
-      if (t) applyThemeColors(t.colors);
-    }
+    // The theme's groups (in a Generic theme, with that theme's colours).
+    groups = startingGroups();
     // Boxes assigned to a group you'd added go back to their automatic group.
     for (const [name, c] of Array.from(nodeColors)) {
       if (c.startsWith(GROUP_PREFIX) && !manualGroup(name)) nodeColors.delete(name);
@@ -2295,8 +2311,9 @@ function updateColoursNote() {
 
 /** One card per group: color, name, keywords, and Reset (built-in) or Remove. */
 function renderGroupEditor(theme: ChartTheme) {
+  // Nothing to reset when the groups are still the current theme's own.
   $<HTMLButtonElement>("reset-groups-btn").disabled =
-    JSON.stringify(groups) === JSON.stringify(builtinGroups());
+    JSON.stringify(groups) === JSON.stringify(startingGroups());
 
   const rows = $("group-rows");
   // Rebuild the cards only when groups are added or removed, so the input

@@ -18,6 +18,7 @@ import type { ChartSize, SizeMenu } from "../taskpane/sizeMenu";
 import { attachChartEdges } from "../taskpane/chartEdges";
 import type { ChartEdges } from "../taskpane/chartEdges";
 import { setupToolbarIconSelects } from "../taskpane/iconSelect";
+import { showTooltip } from "../taskpane/tooltip";
 import type {
   ChartModel,
   PopoutAction,
@@ -237,18 +238,16 @@ function draw(m: ChartModel) {
           tooltip.hidden = true;
           return;
         }
-        tooltip.innerHTML = h.html;
-        tooltip.hidden = false;
-        // Keep the tooltip inside the window.
-        const pad = 12;
-        const w = tooltip.offsetWidth;
-        const ht = tooltip.offsetHeight;
-        let x = h.x + pad;
-        if (x + w > frame.clientWidth + window.scrollX) x = h.x - w - pad;
-        let y = h.y + pad;
-        if (y + ht > frame.clientHeight) y = h.y - ht - pad;
-        tooltip.style.left = `${Math.max(0, x)}px`;
-        tooltip.style.top = `${Math.max(0, y)}px`;
+        // Keep the tooltip inside the window: the chart frame can be bigger
+        // than it (zoomed in) and the page scrolls, so measure what's visible.
+        const r = frame.getBoundingClientRect();
+        const view = document.documentElement;
+        showTooltip(tooltip, h.html, h.x, h.y, {
+          left: Math.max(0, -r.left),
+          top: Math.max(0, -r.top),
+          right: view.clientWidth - r.left,
+          bottom: view.clientHeight - r.top,
+        });
       },
     },
   });

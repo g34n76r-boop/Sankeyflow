@@ -7,6 +7,9 @@
 
 /* global document, Excel, Office, OfficeExtension, HTMLElement, HTMLSelectElement, setTimeout, clearTimeout */
 
+import { friendlyError } from "./errors";
+import { parseNumber } from "./numbers";
+
 export interface TableRow {
   source: string;
   target: string;
@@ -43,15 +46,17 @@ export interface TablePickerOptions {
 const CHANGE_DEBOUNCE_MS = 500;
 
 /**
- * Keeps rows whose third column is a real number. Rows with a blank or
- * non-numeric value (text, TRUE/FALSE, errors such as #N/A) are ignored.
+ * Keeps rows whose third column is a number, read the same way as for
+ * selected cells (numbers typed as text, like "1,200" or "£50", count). Rows
+ * with a blank or non-numeric value (other text, TRUE/FALSE, errors such as
+ * #N/A) are ignored.
  */
 export function parseTableRows(values: unknown[][]): { rows: TableRow[]; ignored: number } {
   const rows: TableRow[] = [];
   let ignored = 0;
   for (const r of values) {
-    const v = r[2];
-    if (typeof v !== "number" || !isFinite(v)) {
+    const v = parseNumber(r[2]);
+    if (!isFinite(v)) {
       ignored++;
       continue;
     }
@@ -163,7 +168,7 @@ async function reloadWatched() {
       await refreshTableList();
       return;
     }
-    options.onError(err?.message ?? String(e));
+    options.onError(friendlyError(e));
   }
 }
 
