@@ -32,6 +32,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
+      # The one-click Windows installer, published as SankeyFlow-Setup.zip.
+      - run: cd installer && zip -r ../dist/SankeyFlow-Setup.zip .
+
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
