@@ -21,7 +21,7 @@ module.exports = async (env, options) => {
     // Office webviews: WebView2 on Windows, Safari 14+ on Mac, and browsers for
     // Excel on the web) support everything the code uses.
     entry: {
-      taskpane: ["./src/taskpane/taskpane.ts", "./src/taskpane/taskpane.html"],
+      taskpane: ["./src/taskpane/excel.ts", "./src/taskpane/taskpane.html"],
       preview: "./src/preview/preview.ts",
     },
     output: {
