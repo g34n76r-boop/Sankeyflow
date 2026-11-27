@@ -16,11 +16,28 @@ export const MAX_CHART_W = 2400;
 export const MIN_CHART_H = 160;
 export const MAX_CHART_H = 2000;
 
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** The allowed range for each of the chart's dimensions, in px. */
+export const CHART_SIZE_LIMITS: Record<"width" | "height", [number, number]> = {
+  width: [MIN_CHART_W, MAX_CHART_W],
+  height: [MIN_CHART_H, MAX_CHART_H],
+};
+
+/**
+ * A chart width or height typed into a box: whole px within the limits, or
+ * null (automatic) when blank or not a number.
+ */
+export function parseChartSize(raw: string, axis: "width" | "height"): number | null {
+  const v = Number(raw);
+  if (raw.trim() === "" || !Number.isFinite(v)) return null;
+  const [lo, hi] = CHART_SIZE_LIMITS[axis];
+  return Math.round(clamp(v, lo, hi));
+}
+
 /** Limits for the preview area's height. */
 const MIN_VIEW_H = 120;
 const MAX_VIEW_H = 2400;
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 const BAR_LENGTH = 44;
 const BAR_THICKNESS = 8;

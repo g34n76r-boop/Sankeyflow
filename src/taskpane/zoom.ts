@@ -6,7 +6,7 @@
 
 /* global SVGSVGElement, HTMLButtonElement, HTMLElement */
 
-export const ZOOM_LEVELS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+const ZOOM_LEVELS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
 /** The next zoom level in (+1) or out (−1) from `z`. */
 export function stepZoom(z: number, dir: 1 | -1): number {
@@ -14,7 +14,7 @@ export function stepZoom(z: number, dir: 1 | -1): number {
   return [...ZOOM_LEVELS].reverse().find((l) => l < z - 1e-6) ?? ZOOM_LEVELS[0];
 }
 
-export const canZoom = (z: number, dir: 1 | -1) =>
+const canZoom = (z: number, dir: 1 | -1) =>
   dir > 0 ? z < ZOOM_LEVELS[ZOOM_LEVELS.length - 1] - 1e-6 : z > ZOOM_LEVELS[0] + 1e-6;
 
 /** Shows a drawn chart at `z` times its size. */

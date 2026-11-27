@@ -7,7 +7,7 @@
 
 /* global document, HTMLButtonElement, HTMLInputElement, Node, KeyboardEvent */
 
-import { MAX_CHART_H, MAX_CHART_W, MIN_CHART_H, MIN_CHART_W } from "./resize";
+import { MAX_CHART_H, MAX_CHART_W, MIN_CHART_H, MIN_CHART_W, parseChartSize } from "./resize";
 
 export interface ChartSize {
   width: number | null;
@@ -63,16 +63,10 @@ export function attachSizeMenu(
   const hIn = menu.querySelector<HTMLInputElement>('[data-axis="height"]')!;
   const autoBtn = menu.querySelector<HTMLButtonElement>(".size-menu-auto")!;
 
-  const read = (el: HTMLInputElement, lo: number, hi: number) => {
-    const v = Number(el.value);
-    return el.value.trim() === "" || !Number.isFinite(v)
-      ? null
-      : Math.round(Math.min(hi, Math.max(lo, v)));
-  };
   const apply = () =>
     onChange({
-      width: read(wIn, MIN_CHART_W, MAX_CHART_W),
-      height: read(hIn, MIN_CHART_H, MAX_CHART_H),
+      width: parseChartSize(wIn.value, "width"),
+      height: parseChartSize(hIn.value, "height"),
     });
   wIn.addEventListener("change", apply);
   hIn.addEventListener("change", apply);

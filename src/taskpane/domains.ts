@@ -11,6 +11,14 @@
 export type IndustryId = "finance" | "supply" | "manufacturing" | "hr" | "sales";
 
 /**
+ * Values of the Style "Colour theme" dropdown: THEME_PREFIX + a colour theme
+ * ("default" is Cashflow, the others are the Generic ones), or
+ * INDUSTRY_PREFIX + an industry id.
+ */
+export const THEME_PREFIX = "theme:";
+export const INDUSTRY_PREFIX = "industry:";
+
+/**
  * A colour that follows the light/dark theme. The first five are the Money
  * flow colours (green, gray, crimson, teal, ochre); "blue" is palette blue.
  */

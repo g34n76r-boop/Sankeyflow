@@ -35,6 +35,19 @@
     --toolbar-border: rgba(30, 40, 55, 0.15);
     --toolbar-hover: #d9dde2;
     --toolbar-icon: #3d3c39; /* the one colour for every toolbar icon */
+    /* The shared chart components (chart-components.css) in the pane's theme.
+       Set once: they follow the variables above in both light and dark. */
+    --cc-accent: var(--accent);
+    --cc-border: var(--border);
+    --cc-control-border: var(--border);
+    --cc-surface: var(--surface);
+    --cc-text: var(--text-primary);
+    --cc-hover: var(--toolbar-hover);
+    --cc-button-bg: var(--btn-bg);
+    --cc-button-hover: var(--btn-hover);
+    --cc-input-bg: var(--btn-bg);
+    --cc-tooltip-bg: var(--tooltip-bg);
+    --cc-tooltip-shadow: var(--shadow);
     color-scheme: light;
 }
 
@@ -789,10 +802,6 @@ summary:focus-visible {
     border-radius: 6px;
 }
 
-.memory-card.is-open {
-    border-color: var(--accent);
-}
-
 .memory-head {
     display: flex;
     align-items: center;
@@ -802,16 +811,6 @@ summary:focus-visible {
 .memory-name {
     flex: 1 1 auto;
     min-width: 0;
-    font-weight: 600;
-}
-
-.memory-badge {
-    flex: none;
-    padding: 1px 8px;
-    border-radius: 10px;
-    background: var(--accent);
-    color: var(--accent-ink);
-    font-size: 11px;
     font-weight: 600;
 }
 
@@ -1165,23 +1164,9 @@ th.num {
     cursor: pointer;
 }
 
-/* The dropdown button: the chosen option's icon and a small caret. */
+/* Icon dropdowns: shared styles in chart-components.css; the pane's own below. */
 .icon-select {
-    position: relative;
     flex: none;
-    display: flex;
-}
-
-.icon-select-btn {
-    display: flex;
-    align-items: center;
-    gap: 1px;
-    height: 26px;
-    padding: 0 3px 0 4px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: var(--btn-bg);
-    cursor: pointer;
 }
 
 /* Shown at their drawn size (20px grid, 10px caret): no scaling, so they stay sharp. */
@@ -1195,65 +1180,12 @@ th.num {
     height: 10px;
 }
 
-.icon-select-btn:hover,
-.icon-select-btn.active {
-    border-color: var(--accent);
-    background: var(--toolbar-hover);
-}
-
-.icon-select-btn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-}
-
-.icon-select-btn svg,
-.icon-select-item svg {
-    display: block;
-}
-
-.icon-select-caret {
-    opacity: 0.6;
-}
-
-/* The menu: each option as its icon with its name beside it, one under another. */
-.icon-select-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    z-index: 6;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--surface);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
-}
-
-.icon-select-menu.align-right {
-    left: auto;
-    right: 0;
-}
-
 .icon-select-menu[hidden] {
     display: none;
 }
 
 .icon-select-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 31px;
-    padding: 0 10px 0 6px;
-    border: 1px solid transparent;
-    border-radius: 5px;
-    background: transparent;
-    font: inherit;
     font-size: 14px;
-    white-space: nowrap;
-    text-align: left;
-    cursor: pointer;
 }
 
 .icon-select-item svg {
@@ -1264,16 +1196,6 @@ th.num {
 
 .icon-select-text {
     color: var(--text-primary);
-}
-
-.icon-select-item:hover,
-.icon-select-item:focus-visible {
-    background: var(--toolbar-hover);
-    outline: none;
-}
-
-.icon-select-item.selected {
-    border-color: var(--accent);
 }
 
 .toolbar-fields input[type="color"] {
@@ -1395,112 +1317,14 @@ th.num {
     border-bottom: 1px dotted rgba(128, 128, 128, 0.7);
 }
 
-/* Dotted lines along the chart's right and bottom edges, so its size is clear
-   (especially zoomed out). Hover one for that dimension; click it to change it
-   (chartEdges.ts). Drawn inside the edge so the scroll box doesn't clip them;
-   CSS only, so they aren't part of the chart inserted into the sheet. */
-.chart-edges {
-    position: relative;
-    width: max-content;
-}
-
+/* The chart's dotted edges (chartEdges.ts): shared styles in chart-components.css. */
 .chart-edge {
-    position: absolute;
     z-index: 2;
-    cursor: pointer;
-    outline: none;
-}
-
-/* A strip a few px wide (easy to hover) with the dotted line on its outer side. */
-.chart-edge-right {
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 7px;
-    border-right: 1px dotted rgba(128, 128, 128, 0.7);
-}
-
-.chart-edge-bottom {
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 7px;
-    border-bottom: 1px dotted rgba(128, 128, 128, 0.7);
-}
-
-.chart-edge:hover,
-.chart-edge:focus-visible,
-.chart-edge.active {
-    border-color: var(--accent);
-    border-right-style: solid;
-    border-bottom-style: solid;
-}
-
-.chart-edge-right:hover,
-.chart-edge-right:focus-visible,
-.chart-edge-right.active {
-    border-right-width: 2px;
-}
-
-.chart-edge-bottom:hover,
-.chart-edge-bottom:focus-visible,
-.chart-edge-bottom.active {
-    border-bottom-width: 2px;
-}
-
-.chart-edge-label,
-.chart-edge-pop {
-    position: fixed;
-    z-index: 20;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text-primary);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-}
-
-.chart-edge-label {
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    white-space: nowrap;
-    pointer-events: none;
-}
-
-.chart-edge-pop {
-    padding: 8px 10px;
-    border-radius: 6px;
-    font-size: 13px;
-}
-
-.chart-edge-pop-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.chart-edge-input {
-    width: 7em;
-    padding: 3px 6px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--surface);
-    color: var(--text-primary);
-    font: inherit;
-}
-
-.chart-edge-input:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -1px;
 }
 
 .chart-edge-pop-unit,
 .chart-edge-pop-hint {
-    font-size: 11px;
     color: var(--text-muted);
-}
-
-.chart-edge-pop-hint {
-    margin-top: 5px;
 }
 
 .chart svg rect[role="button"]:focus-visible {
@@ -1509,8 +1333,6 @@ th.num {
 }
 
 .tt-hint {
-    margin-top: 4px;
-    font-size: 11px;
     color: var(--text-muted);
 }
 
@@ -1520,14 +1342,6 @@ th.num {
     border-top: 1px solid var(--border);
     padding-top: 12px;
     margin-bottom: 14px;
-}
-
-.customize-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: wrap;
 }
 
 .customize h2 {
@@ -1852,28 +1666,9 @@ input[type="color"] {
     color: var(--text-muted);
 }
 
+/* The hover tooltip: shared styles in chart-components.css. */
 .tooltip {
-    position: absolute;
-    z-index: 3; /* above the chart's dotted edges */
-    pointer-events: none;
-    background: var(--tooltip-bg);
     color: var(--text-primary);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    box-shadow: var(--shadow);
-    padding: 6px 10px;
-    font-size: 12px;
-    max-width: 200px;
-    z-index: 2;
-}
-
-.tt-title {
-    font-weight: 600;
-}
-
-.tt-value {
-    font-size: 16px;
-    font-weight: 600;
 }
 
 .tt-sub {
@@ -1886,13 +1681,7 @@ input[type="color"] {
     gap: 8px;
 }
 
-/* Size: [width] × [height] ↺ */
-/* Chart size menu, opened from the dimensions icon in the chart's corner. */
-.size-menu-wrap {
-    position: relative;
-    display: flex;
-}
-
+/* The chart size menu (sizeMenu.ts): shared styles in chart-components.css. */
 .chart-frame .chart-tools .chart-tool.active {
     opacity: 1;
     background: var(--toolbar-hover);
@@ -1900,51 +1689,11 @@ input[type="color"] {
 }
 
 .size-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
     z-index: 6;
-    width: 210px;
-    padding: 10px 12px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface);
-    color: var(--text-primary);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
-    font-size: 13px;
-}
-
-.size-menu-title {
-    margin-bottom: 8px;
-    font-weight: 600;
-}
-
-.size-menu-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
 }
 
 .size-menu-row > span:first-child {
-    width: 3.5em;
     color: var(--text-secondary);
-}
-
-.size-menu-input {
-    flex: 1;
-    min-width: 0;
-    padding: 4px 6px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--btn-bg);
-    color: var(--text-primary);
-    font: inherit;
-}
-
-.size-menu-input:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -1px;
 }
 
 .size-menu-unit {
@@ -1953,30 +1702,7 @@ input[type="color"] {
 }
 
 .size-menu-hint {
-    margin: 4px 0 10px;
     color: var(--text-muted);
-    font-size: 11px;
-    line-height: 1.35;
-}
-
-.size-menu-auto {
-    width: 100%;
-    padding: 5px 8px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: transparent;
-    color: var(--text-primary);
-    font: inherit;
-    cursor: pointer;
-}
-
-.size-menu-auto:hover:not(:disabled) {
-    background: var(--btn-hover);
-}
-
-.size-menu-auto:disabled {
-    opacity: 0.45;
-    cursor: default;
 }
 
 .scheme-hint {

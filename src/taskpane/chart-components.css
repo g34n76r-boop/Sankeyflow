@@ -1,0 +1,324 @@
+/*
+ * The chart components used by both the task pane and the pop-out window:
+ * icon dropdowns (iconSelect.ts), the dotted chart edges (chartEdges.ts), the
+ * hover tooltip (tooltip.ts) and the chart size menu (sizeMenu.ts).
+ *
+ * Loaded before each page's own styles. Their colours differ (the pane follows
+ * its light/dark theme, the window the chart's background), so each page sets
+ * these variables:
+ *   --cc-accent          focus rings, hover and selected outlines
+ *   --cc-border          menus, pop-ups and the tooltip
+ *   --cc-control-border  buttons and inputs inside them
+ *   --cc-surface         menu and pop-up background
+ *   --cc-text            their text
+ *   --cc-hover           a hovered dropdown button or menu item
+ *   --cc-button-bg       the dropdown button
+ *   --cc-button-hover    the size menu's "Automatic size" button, hovered
+ *   --cc-input-bg        the size menu's inputs
+ *   --cc-tooltip-bg, --cc-tooltip-shadow
+ * Anything else that differs between the two (muted text, z-order, font sizes)
+ * is in the page's own styles.
+ */
+
+/* ---------- Icon dropdowns ---------- */
+
+/* The dropdown button: the chosen option's icon and a small caret. */
+.icon-select {
+    position: relative;
+    display: flex;
+}
+
+.icon-select-btn {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    height: 26px;
+    padding: 0 3px 0 4px;
+    border: 1px solid var(--cc-control-border);
+    border-radius: 5px;
+    background: var(--cc-button-bg);
+    cursor: pointer;
+}
+
+.icon-select-btn:hover,
+.icon-select-btn.active {
+    border-color: var(--cc-accent);
+    background: var(--cc-hover);
+}
+
+.icon-select-btn:focus-visible {
+    outline: 2px solid var(--cc-accent);
+    outline-offset: 1px;
+}
+
+.icon-select-btn svg,
+.icon-select-item svg {
+    display: block;
+}
+
+.icon-select-caret {
+    opacity: 0.6;
+}
+
+/* The menu: each option as its icon with its name beside it, one under another. */
+.icon-select-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--cc-border);
+    border-radius: 6px;
+    background: var(--cc-surface);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+}
+
+.icon-select-menu.align-right {
+    left: auto;
+    right: 0;
+}
+
+.icon-select-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 31px;
+    padding: 0 10px 0 6px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    font: inherit;
+    white-space: nowrap;
+    text-align: left;
+    cursor: pointer;
+}
+
+.icon-select-item:hover,
+.icon-select-item:focus-visible {
+    background: var(--cc-hover);
+    outline: none;
+}
+
+.icon-select-item.selected {
+    border-color: var(--cc-accent);
+}
+
+/* ---------- Chart edges ---------- */
+
+/* Dotted lines along the chart's right and bottom edges, so its size is clear
+   (especially zoomed out). Hover one for that dimension; click it to change it.
+   Drawn inside the edge so a scroll box doesn't clip them; CSS only, so they
+   aren't part of the chart inserted into the sheet. */
+.chart-edges {
+    position: relative;
+    width: max-content;
+}
+
+.chart-edge {
+    position: absolute;
+    cursor: pointer;
+    outline: none;
+}
+
+/* A strip a few px wide (easy to hover) with the dotted line on its outer side. */
+.chart-edge-right {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 7px;
+    border-right: 1px dotted rgba(128, 128, 128, 0.7);
+}
+
+.chart-edge-bottom {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 7px;
+    border-bottom: 1px dotted rgba(128, 128, 128, 0.7);
+}
+
+.chart-edge:hover,
+.chart-edge:focus-visible,
+.chart-edge.active {
+    border-color: var(--cc-accent);
+    border-right-style: solid;
+    border-bottom-style: solid;
+}
+
+.chart-edge-right:hover,
+.chart-edge-right:focus-visible,
+.chart-edge-right.active {
+    border-right-width: 2px;
+}
+
+.chart-edge-bottom:hover,
+.chart-edge-bottom:focus-visible,
+.chart-edge-bottom.active {
+    border-bottom-width: 2px;
+}
+
+.chart-edge-label,
+.chart-edge-pop {
+    position: fixed;
+    z-index: 20;
+    border: 1px solid var(--cc-border);
+    background: var(--cc-surface);
+    color: var(--cc-text);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.chart-edge-label {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.chart-edge-pop {
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.chart-edge-pop-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.chart-edge-input {
+    width: 7em;
+    padding: 3px 6px;
+    border: 1px solid var(--cc-control-border);
+    border-radius: 4px;
+    background: var(--cc-surface);
+    color: var(--cc-text);
+    font: inherit;
+}
+
+.chart-edge-input:focus-visible {
+    outline: 2px solid var(--cc-accent);
+    outline-offset: -1px;
+}
+
+.chart-edge-pop-unit,
+.chart-edge-pop-hint {
+    font-size: 11px;
+}
+
+.chart-edge-pop-hint {
+    margin-top: 5px;
+}
+
+/* ---------- Hover tooltip ---------- */
+
+.tooltip {
+    position: absolute;
+    z-index: 2; /* with the dotted edges, but later in the page, so on top */
+    max-width: 200px;
+    padding: 6px 10px;
+    border: 1px solid var(--cc-border);
+    border-radius: 6px;
+    background: var(--cc-tooltip-bg);
+    box-shadow: var(--cc-tooltip-shadow);
+    font-size: 12px;
+    pointer-events: none;
+}
+
+.tt-title {
+    font-weight: 600;
+}
+
+.tt-value {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.tt-hint {
+    margin-top: 4px;
+    font-size: 11px;
+}
+
+/* ---------- Chart size menu ---------- */
+
+/* Opened from the dimensions icon on the chart toolbar. */
+.size-menu-wrap {
+    position: relative;
+    display: flex;
+}
+
+.size-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 210px;
+    padding: 10px 12px 12px;
+    border: 1px solid var(--cc-border);
+    border-radius: 8px;
+    background: var(--cc-surface);
+    color: var(--cc-text);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+    font-size: 13px;
+}
+
+.size-menu-title {
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.size-menu-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.size-menu-row > span:first-child {
+    width: 3.5em;
+}
+
+.size-menu-input {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 6px;
+    border: 1px solid var(--cc-control-border);
+    border-radius: 4px;
+    background: var(--cc-input-bg);
+    color: var(--cc-text);
+    font: inherit;
+}
+
+.size-menu-input:focus-visible {
+    outline: 2px solid var(--cc-accent);
+    outline-offset: -1px;
+}
+
+.size-menu-hint {
+    margin: 4px 0 10px;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.size-menu-auto {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--cc-control-border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--cc-text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.size-menu-auto:hover:not(:disabled) {
+    background: var(--cc-button-hover);
+}
+
+.size-menu-auto:disabled {
+    opacity: 0.45;
+    cursor: default;
+}

@@ -64,7 +64,7 @@ export interface SankeyOptions {
 export class SankeyError extends Error {}
 
 /** Combines duplicate source/target pairs and validates the flows. */
-export function aggregateFlows(flows: Flow[]): Flow[] {
+function aggregateFlows(flows: Flow[]): Flow[] {
   const byKey = new Map<string, Flow>();
   for (const f of flows) {
     if (f.source === f.target) {
@@ -328,6 +328,15 @@ function resolveCollisions(
     if (dy > 0) shift(n, -dy);
     y = n.y0 - padding;
   }
+}
+
+/**
+ * In minus out, or 0 when the two only differ by floating-point dust (adding
+ * up many decimals rarely comes out exact).
+ */
+export function balanceDifference(inValue: number, outValue: number): number {
+  const d = inValue - outValue;
+  return Math.abs(d) < Math.max(inValue, outValue, 1) * 1e-9 ? 0 : d;
 }
 
 /** Horizontal cubic Bézier through the middle of a link band. */

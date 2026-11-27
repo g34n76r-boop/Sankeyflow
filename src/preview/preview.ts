@@ -11,7 +11,7 @@
 
 import { renderSankey } from "../taskpane/chart";
 import { getNodePosition } from "../taskpane/sankey";
-import { modelToLayout } from "../taskpane/popoutModel";
+import { TOOLBAR_OPTION_IDS, modelToLayout } from "../taskpane/popoutModel";
 import { applyZoom, stepZoom, updateZoomButtons, zoomKeepingCentre } from "../taskpane/zoom";
 import { attachSizeMenu } from "../taskpane/sizeMenu";
 import type { ChartSize, SizeMenu } from "../taskpane/sizeMenu";
@@ -23,12 +23,8 @@ import type {
   ChartModel,
   PopoutAction,
   PopoutContent,
-  ToolbarOptionId,
   ToolbarOptions,
 } from "../taskpane/popoutModel";
-
-/** The toolbar's options (set in the task pane; changing one here tells the pane). */
-const OPTION_IDS: ToolbarOptionId[] = ["background-mode", "background-color", "node-order", "end-align", "link-color"];
 
 interface Chunk {
   id: number;
@@ -84,7 +80,7 @@ Office.onReady(() => {
   // Background / Order / Ends / Links: the same icon dropdowns as in the pane.
   // A change is made in the pane, which sends the redrawn chart back here.
   setupToolbarIconSelects();
-  for (const id of OPTION_IDS) {
+  for (const id of TOOLBAR_OPTION_IDS) {
     const el = document.getElementById(id) as HTMLInputElement;
     el.addEventListener(id === "background-color" ? "input" : "change", () => {
       if (id === "background-mode") syncCustomColor();
@@ -191,7 +187,7 @@ function show(content: PopoutContent) {
 
 /** Shows the toolbar's options as set in the pane. */
 function showOptions(o: ToolbarOptions) {
-  for (const id of OPTION_IDS) {
+  for (const id of TOOLBAR_OPTION_IDS) {
     const el = document.getElementById(id) as HTMLInputElement;
     // Don't reset the colour picker while it's in use (its updates lag behind it).
     if (id === "background-color" && document.activeElement === el) continue;

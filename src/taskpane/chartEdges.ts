@@ -10,7 +10,7 @@
 
 /* global document, window, HTMLElement, HTMLInputElement, SVGSVGElement, Node, KeyboardEvent, PointerEvent, MouseEvent */
 
-import { MAX_CHART_H, MAX_CHART_W, MIN_CHART_H, MIN_CHART_W } from "./resize";
+import { CHART_SIZE_LIMITS as LIMITS, parseChartSize } from "./resize";
 import type { ChartSize } from "./sizeMenu";
 
 export type Axis = "width" | "height";
@@ -20,11 +20,6 @@ export interface ChartEdges {
   sync(size: ChartSize, drawn: { width: number; height: number }): void;
   close(): void;
 }
-
-const LIMITS: Record<Axis, [number, number]> = {
-  width: [MIN_CHART_W, MAX_CHART_W],
-  height: [MIN_CHART_H, MAX_CHART_H],
-};
 const NAME: Record<Axis, string> = { width: "Width", height: "Height" };
 
 /**
@@ -92,10 +87,7 @@ export function attachChartEdges(
     opener?.classList.remove("active");
     if (refocus) opener?.focus();
     if (!apply) return;
-    const raw = input.value.trim();
-    const n = Number(raw);
-    const [lo, hi] = LIMITS[axis];
-    const v = raw === "" || !Number.isFinite(n) ? null : Math.round(Math.min(hi, Math.max(lo, n)));
+    const v = parseChartSize(input.value, axis);
     if (v !== size[axis]) onChange(axis, v);
   };
 

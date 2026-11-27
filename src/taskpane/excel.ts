@@ -1,16 +1,22 @@
 /* global document, window, Excel, Office, XMLSerializer, Image, CSS, Event, setTimeout, clearTimeout, ResizeObserver */
 /* global HTMLElement, HTMLSelectElement, HTMLInputElement, HTMLButtonElement, HTMLDetailsElement, HTMLTableRowElement, SVGSVGElement */
 
-import { SankeyError, applyNodePositions, computeSankey, getNodePosition } from "./sankey";
+import {
+  SankeyError,
+  applyNodePositions,
+  balanceDifference,
+  computeSankey,
+  getNodePosition,
+} from "./sankey";
 import type { Flow, NodePosition, SankeyLayout, SankeyNode } from "./sankey";
 import {
   DARK_THEME,
   LIGHT_THEME,
-  formatValue,
   nodeColor,
   renderSankey,
   themeForBackground,
   titleHeight,
+  toHex6,
 } from "./chart";
 import type {
   ChartHandle,
@@ -19,6 +25,7 @@ import type {
   ColorChoice,
   LinkColorMode,
   NodeGroup,
+  RenderOptions,
 } from "./chart";
 import {
   DEFAULT_LABELS,
@@ -27,6 +34,7 @@ import {
   LINE_HEIGHT,
   NAME_WEIGHT,
   formatNumber,
+  formatPlainNumber,
   labelBlock,
   resolvePlacement,
   totalFlow,
@@ -51,6 +59,7 @@ import {
   renderMemory,
   saveDiagram,
   setOpenDiagram,
+  sourceText,
   takeLegacyTable,
 } from "./memory";
 import type {
@@ -64,12 +73,13 @@ import type {
 } from "./memory";
 import type { TableData } from "./tables";
 import { computeRoles } from "./finance";
-import { INDUSTRY_PRESETS, industryPreset } from "./domains";
+import { INDUSTRY_PREFIX, INDUSTRY_PRESETS, THEME_PREFIX, industryPreset } from "./domains";
 import type { IndustryId, Tone } from "./domains";
 import { SAMPLES, sampleById } from "./samples";
 import type { NodeRole } from "./finance";
 import { closePopout, openPopout, popoutOpen, refreshPopout } from "./popout";
-import { layoutToModel } from "./popoutModel";
+// The toolbar's options; while popped out they're set from the window's toolbar.
+import { TOOLBAR_OPTION_IDS, layoutToModel } from "./popoutModel";
 import { applyZoom, stepZoom, updateZoomButtons, zoomKeepingCentre } from "./zoom";
 import { attachPreviewResizer } from "./resize";
 import { attachSizeMenu } from "./sizeMenu";
@@ -77,16 +87,11 @@ import { setupToolbarIconSelects } from "./iconSelect";
 import type { SizeMenu } from "./sizeMenu";
 import { attachChartEdges } from "./chartEdges";
 import type { ChartEdges } from "./chartEdges";
+import { $, escapeHtml } from "./dom";
 import { parseNumber } from "./numbers";
 import { errorCode, friendlyError } from "./errors";
 import { showTooltip } from "./tooltip";
-import type {
-  ChartModel,
-  PopoutAction,
-  PopoutContent,
-  ToolbarOptionId,
-  ToolbarOptions,
-} from "./popoutModel";
+import type { ChartModel, PopoutAction, PopoutContent, ToolbarOptions } from "./popoutModel";
 
 /** Narrowest the chart is drawn in the pane; narrower panes scroll sideways. */
 const MIN_CHART_WIDTH = 640;
@@ -182,14 +187,7 @@ function setupTitleControls() {
       textContent: "Same as labels",
     })
   );
-  for (const f of FONT_CHOICES) {
-    const opt = Object.assign(document.createElement("option"), {
-      value: f.stack,
-      textContent: f.name,
-    });
-    opt.style.fontFamily = f.stack;
-    font.appendChild(opt);
-  }
+  addFontOptions(font);
   font.onchange = () => update({ fontFamily: font.value === SAME_AS_LABELS ? null : font.value });
 
   const subSize = $<HTMLInputElement>("subtitle-size");
@@ -214,13 +212,28 @@ function setupTitleControls() {
   syncTitleControls();
 }
 
+/** One option per font choice, each shown in its own font. */
+function addFontOptions(select: HTMLSelectElement) {
+  for (const f of FONT_CHOICES) {
+    const opt = Object.assign(document.createElement("option"), {
+      value: f.stack,
+      textContent: f.name,
+    });
+    opt.style.fontFamily = f.stack;
+    select.appendChild(opt);
+  }
+}
+
+/** Sets a control's value, unless it's the one being typed in (or already shows it). */
+function setControl(id: string, value: string) {
+  const el = $<HTMLInputElement | HTMLSelectElement>(id);
+  if (document.activeElement !== el && el.value !== value) el.value = value;
+}
+
 /** Writes the title settings into the controls (skipping the one being typed in). */
 function syncTitleControls() {
   const t = chartTitle;
-  const set = (id: string, value: string) => {
-    const el = $<HTMLInputElement | HTMLSelectElement>(id);
-    if (document.activeElement !== el && el.value !== value) el.value = value;
-  };
+  const set = setControl;
   set("title-text", t.text);
   set("subtitle-text", t.subtitle);
   set("title-size", String(t.size));
@@ -237,8 +250,6 @@ function syncTitleControls() {
   // The section heading shows the title, so it's visible while collapsed.
   $("title-note").textContent = any ? t.text.trim() || t.subtitle.trim() : "None";
 }
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 Office.onReady((info) => {
   if (info.host !== Office.HostType.Excel) return;
@@ -266,8 +277,7 @@ Office.onReady((info) => {
   $("reset-positions-btn").onclick = () => {
     nodePositions.clear();
     // Dragged label offsets are part of the layout too.
-    for (const [name, o] of Array.from(labelOverrides))
-      setOverride(name, { ...o, dx: undefined, dy: undefined });
+    for (const name of Array.from(labelOverrides.keys())) clearLabelOffset(name);
     draw();
   };
   $("reset-colors-btn").onclick = () => {
@@ -280,8 +290,7 @@ Office.onReady((info) => {
   $("reset-node-position").onclick = () => {
     if (!selectedNode) return;
     nodePositions.delete(selectedNode);
-    const o = labelOverrides.get(selectedNode);
-    if (o) setOverride(selectedNode, { ...o, dx: undefined, dy: undefined });
+    clearLabelOffset(selectedNode);
     draw();
   };
   $<HTMLInputElement>("custom-color").addEventListener("input", (e) => {
@@ -337,39 +346,17 @@ Office.onReady((info) => {
       // If the diagram still shows that table, say it has stopped updating.
       // (When switching tables, the new table's data replaces this right away.)
       if (current?.source.kind === "table" && current.source.id === id) {
-        $("source-address").textContent =
-          `Table "${current.source.name}" (${current.source.sheet}) · not updating`;
+        $("source-address").textContent = `${sourceText(current.source)} · not updating`;
       }
     },
   }).then(() => run(restoreOnStartup));
 
   // Redraw when the chart's box changes width — from resizing the pane, but also
   // when the pane's scrollbar appears or disappears as content changes.
-  let resizeTimer: ReturnType<typeof setTimeout> | undefined;
-  let lastWidth = 0;
-  const scheduleRedraw = () => {
-    const w = $("chart").clientWidth;
-    if (w === lastWidth) return;
-    lastWidth = w;
-    if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => draw(), 120);
-  };
-  if (typeof ResizeObserver !== "undefined") new ResizeObserver(scheduleRedraw).observe($("chart"));
-  else window.addEventListener("resize", scheduleRedraw);
+  onWidthChange($("chart"), 120, () => draw());
   // The example preview: redraw when its box changes width (pane resized, or
   // shown again after switching back to the Chart tab).
-  let previewTimer: ReturnType<typeof setTimeout> | undefined;
-  let previewWidth = 0;
-  const schedulePreview = () => {
-    const w = $("example-preview").clientWidth;
-    if (w === previewWidth) return;
-    previewWidth = w;
-    if (previewTimer) clearTimeout(previewTimer);
-    previewTimer = setTimeout(renderExamplePreview, 80);
-  };
-  if (typeof ResizeObserver !== "undefined") {
-    new ResizeObserver(schedulePreview).observe($("example-preview"));
-  } else window.addEventListener("resize", schedulePreview);
+  onWidthChange($("example-preview"), 80, renderExamplePreview);
   // The preview sits in the collapsible "Getting started" section: draw it on opening.
   $("getting-started").addEventListener("toggle", () => {
     if (($("getting-started") as HTMLDetailsElement).open) renderExamplePreview();
@@ -377,7 +364,31 @@ Office.onReady((info) => {
   renderExamplePreview();
 });
 
+/**
+ * Calls `fn` (after `delay` ms of quiet) when `el` changes width. Height
+ * changes are ignored: they come from redrawing, and would redraw again.
+ */
+function onWidthChange(el: HTMLElement, delay: number, fn: () => void) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let lastWidth = 0;
+  const changed = () => {
+    const w = el.clientWidth;
+    if (w === lastWidth) return;
+    lastWidth = w;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(fn, delay);
+  };
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(changed).observe(el);
+  else window.addEventListener("resize", changed);
+}
+
 /* ---------- Label controls ---------- */
+
+/** Puts a box's label back at its anchor (drops the offset it was dragged by). */
+function clearLabelOffset(name: string) {
+  const o = labelOverrides.get(name);
+  if (o) setOverride(name, { ...o, dx: undefined, dy: undefined });
+}
 
 function setOverride(name: string, o: NodeLabelOverride) {
   const clean: NodeLabelOverride = {};
@@ -397,13 +408,7 @@ function updateLabels(patch: Partial<LabelSettings>) {
 
 function setupLabelControls() {
   const font = $<HTMLSelectElement>("label-font");
-  for (const f of FONT_CHOICES) {
-    const opt = document.createElement("option");
-    opt.value = f.stack;
-    opt.textContent = f.name;
-    opt.style.fontFamily = f.stack;
-    font.appendChild(opt);
-  }
+  addFontOptions(font);
   font.onchange = () => updateLabels({ fontFamily: font.value });
 
   const size = $<HTMLInputElement>("label-size");
@@ -464,10 +469,7 @@ function setupLabelControls() {
 /** Writes the current settings into the controls (skipping the one being typed in). */
 function syncLabelControls() {
   const s = labelSettings;
-  const set = (id: string, value: string) => {
-    const el = $<HTMLInputElement | HTMLSelectElement>(id);
-    if (document.activeElement !== el && el.value !== value) el.value = value;
-  };
+  const set = setControl;
   set("label-font", s.fontFamily);
   set("label-size", String(s.fontSize));
   $<HTMLInputElement>("label-bold").checked = s.boldNames;
@@ -568,10 +570,6 @@ const backgroundMode = () => $<HTMLSelectElement>("background-mode").value as Ba
  * on white (the usual worksheet color) but draws no background.
  */
 function chartTheme(forExport: boolean): ChartTheme {
-  return baseTheme(forExport);
-}
-
-function baseTheme(forExport: boolean): ChartTheme {
   switch (backgroundMode()) {
     case "white":
     case "transparent":
@@ -600,8 +598,6 @@ function setupBackgroundControls() {
     scheduleDraw();
   });
 }
-
-/* ---------- UI helpers ---------- */
 
 /* ---------- Light / dark toggle ---------- */
 
@@ -687,10 +683,15 @@ async function run(action: () => Promise<void>) {
     setStatus(friendlyError(e), "error");
   } finally {
     buttons.forEach((b, i) => (b.disabled = wasDisabled[i]));
-    $<HTMLButtonElement>("refresh-btn").disabled = !current;
-    $<HTMLButtonElement>("insert-btn").disabled = !current;
-    $<HTMLButtonElement>("clear-btn").disabled = !current;
+    updateActionButtons();
     updateSaveState();
+  }
+}
+
+/** Refresh, Insert and Clear work on the loaded chart: enabled only when there is one. */
+function updateActionButtons() {
+  for (const id of ["refresh-btn", "insert-btn", "clear-btn"]) {
+    $<HTMLButtonElement>(id).disabled = !current;
   }
 }
 
@@ -837,14 +838,15 @@ function showTableData(data: TableData, reason: "picked" | "changed") {
   }
 }
 
+/** Where the data comes from, as shown above the Data tab's table (a table's is live). */
 function sourceLabel(s: DataSource): string {
-  if (s.kind === "range") return s.address;
+  if (s.kind === "range") return sourceText(s);
   const time = new Date().toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
   });
-  return `Table "${s.name}" (${s.sheet}) · live, updated ${time}`;
+  return `${sourceText(s)} · live, updated ${time}`;
 }
 
 /** Shows a validated set of flows as the diagram. Throws (leaving the screen as it was) on loops. */
@@ -872,9 +874,7 @@ function showFlows(
   current = { flows, headers, source };
   setLoadedMode(true);
   setStatus(notes.length ? notes.join(" ") : null);
-  $<HTMLButtonElement>("refresh-btn").disabled = false;
-  $<HTMLButtonElement>("insert-btn").disabled = false;
-  $<HTMLButtonElement>("clear-btn").disabled = false;
+  updateActionButtons();
 
   $("empty-state").hidden = true;
   $("chart-section").hidden = false;
@@ -1082,6 +1082,7 @@ function applySettings(saved: Partial<DiagramSettings>) {
 
   // The group cards are rebuilt for the new groups.
   $("group-rows").dataset.sig = "";
+  syncSampleSelect();
   syncTitleControls();
   syncLabelControls();
   syncColourSelect();
@@ -1226,9 +1227,10 @@ async function openDiagram(d: SavedDiagram) {
 }
 
 /**
- * Forgets a saved diagram: removes everything saved for it and, if it's the
- * one in the pane, unloads it. Its pictures stay in the sheet, renamed so
- * they're no longer marked as SankeyFlow's.
+ * Forgets a saved diagram (from the Memory tab, which is only shown while no
+ * chart is loaded, so it's never the one in the pane): removes everything
+ * saved for it. Its pictures stay in the sheet, renamed so they're no longer
+ * marked as SankeyFlow's.
  */
 async function forget(d: SavedDiagram) {
   if (d.pictures.length && Office.context.requirements.isSetSupported("ExcelApi", "1.9")) {
@@ -1251,7 +1253,6 @@ async function forget(d: SavedDiagram) {
     }
   }
   await forgetDiagram(d.id);
-  if (d.id === openDiagramId) await clearData({ persist: false });
   setStatus(`Forgot "${d.name}".`);
   renderMemoryTab();
 }
@@ -1263,7 +1264,6 @@ const UNLINKED_PICTURE_NAME = "Sankey chart";
 /** The Memory tab's list of saved diagrams. */
 function renderMemoryTab() {
   renderMemory({
-    openId: openDiagramId,
     tables: listedTables(),
     themeName: (d) => `Style: ${themeLabel(d.settings)}`,
     onOpen: requestOpen,
@@ -1409,6 +1409,31 @@ const EXAMPLE_FLOWS: Flow[] = [
   { source: "Budget", target: "Savings", value: 2200 },
 ];
 
+/**
+ * How a laid-out chart looks: colours, groups, labels, title and background,
+ * the same everywhere it's drawn (the pane, the inserted picture, the pop-out
+ * window). Without `personal` (the example preview) it leaves out your own
+ * box colours, label edits and title.
+ */
+function chartLook(
+  layout: SankeyLayout,
+  theme: ChartTheme,
+  margin: Margin,
+  personal = true
+): RenderOptions & { groups: GroupMap } {
+  return {
+    theme,
+    linkColor: $<HTMLSelectElement>("link-color").value as LinkColorMode,
+    labels: labelSettings,
+    labelOverrides: personal ? labelOverrides : new Map<string, NodeLabelOverride>(),
+    colors: personal ? chartColors() : new Map<string, ColorChoice>(),
+    groups: groupsFor(layout.nodes, theme),
+    margin,
+    transparent: backgroundMode() === "transparent",
+    title: personal ? chartTitle : undefined,
+  };
+}
+
 /** Draws the example data with the current style (theme, labels, background…). */
 function renderExamplePreview() {
   const box = $("example-preview");
@@ -1419,16 +1444,7 @@ function renderExamplePreview() {
     const width = Math.max(box.clientWidth, 300);
     // The title isn't part of the example.
     const { layout, margin } = buildLayout(width, chartMargin(4, 10, false), EXAMPLE_FLOWS, false);
-    renderSankey(svg, layout, {
-      theme,
-      linkColor: $<HTMLSelectElement>("link-color").value as LinkColorMode,
-      labels: labelSettings,
-      labelOverrides: new Map(),
-      colors: new Map(),
-      groups: groupsFor(layout.nodes, theme),
-      margin,
-      transparent: backgroundMode() === "transparent",
-    });
+    renderSankey(svg, layout, chartLook(layout, theme, margin, false));
     box.classList.toggle("transparent-bg", backgroundMode() === "transparent");
   } catch {
     // A preview isn't worth an error message.
@@ -1486,18 +1502,11 @@ function draw(opts: { focusSelected?: boolean } = {}) {
       true,
       chartSize.height
     );
-    const gm = groupsFor(layout.nodes, theme);
+    const look = chartLook(layout, theme, margin);
+    const gm = look.groups;
     if (selectedNode && !layout.nodes.some((n) => n.name === selectedNode)) selectedNode = null;
     chartHandle = renderSankey(svg, layout, {
-      theme,
-      linkColor: $<HTMLSelectElement>("link-color").value as LinkColorMode,
-      labels: labelSettings,
-      labelOverrides,
-      colors: chartColors(),
-      groups: gm,
-      margin,
-      transparent,
-      title: chartTitle,
+      ...look,
       interactive: {
         selected: selectedNode,
         focusSelected: opts.focusSelected,
@@ -1583,7 +1592,7 @@ function renderTotals(layout: SankeyLayout) {
   // Keep the right-hand column for the summary.
   document.querySelector(".top-bar")!.classList.remove("no-data");
   applySummaryCollapse();
-  updateImbalanceMessage(accounts, totalIn - totalOut);
+  updateImbalanceMessage(accounts, balanceDifference(totalIn, totalOut));
 }
 
 /* ---------- "Value is unaccounted for." alert ---------- */
@@ -1600,20 +1609,19 @@ let dataGaps = new Map<string, number>();
 /** The gaps the Data tab's flows table was last drawn with. */
 let tableImbalance = "";
 
+/** `totalDiff`: total in minus total out (0 when they match, see balanceDifference). */
 function updateImbalanceMessage(accounts: SankeyNode[], totalDiff: number) {
-  const nearZero = (d: number, scale: number) => Math.abs(d) < Math.max(scale, 1) * 1e-9;
-  const off = accounts
-    .filter((n) => !nearZero(n.inValue - n.outValue, Math.max(n.inValue, n.outValue)))
-    .map((n) => `${n.name}:${n.inValue - n.outValue}`);
-  if (!nearZero(totalDiff, Math.abs(totalDiff))) off.push(`total:${totalDiff}`);
-  currentImbalance = off.join("|");
-
-  // The Data tab marks the same boxes in amber (rebuilt only when the gaps change).
+  // Boxes whose in and out differ, with the difference. The Data tab marks the
+  // same boxes in amber (rebuilt only when the gaps change).
   dataGaps = new Map(
     accounts
-      .filter((n) => !nearZero(n.inValue - n.outValue, Math.max(n.inValue, n.outValue)))
-      .map((n) => [n.name, n.inValue - n.outValue])
+      .map((n): [string, number] => [n.name, balanceDifference(n.inValue, n.outValue)])
+      .filter(([, d]) => d !== 0)
   );
+  const off = Array.from(dataGaps, ([name, d]) => `${name}:${d}`);
+  if (totalDiff !== 0) off.push(`total:${totalDiff}`);
+  currentImbalance = off.join("|");
+
   if (current && currentImbalance !== tableImbalance) fillTable();
 
   const anyGap = currentImbalance !== "";
@@ -1892,9 +1900,7 @@ function signed(diff: number): string {
 
 /** A summary row: name, in, out, and the difference — green when balanced (0), red otherwise. */
 function summaryRow(name: string, inValue: number, outValue: number): HTMLTableRowElement {
-  let diff = inValue - outValue;
-  // Ignore floating-point dust from adding many decimals.
-  if (Math.abs(diff) < Math.max(inValue, outValue, 1) * 1e-9) diff = 0;
+  const diff = balanceDifference(inValue, outValue);
 
   const tr = document.createElement("tr");
   // Balanced rows can be hidden when the summary is collapsed.
@@ -1970,10 +1976,6 @@ function tagText(name: string) {
   if (nodePositions.has(name) || hasLabelOffset(o)) tags.push("moved");
   return tags.join(" · ");
 }
-
-/** Converts any CSS hex color to #rrggbb, which <input type="color"> requires. */
-const toHex6 = (c: string) =>
-  /^#[0-9a-f]{3}$/i.test(c) ? "#" + [1, 2, 3].map((i) => c[i] + c[i]).join("") : c.toLowerCase();
 
 type GroupMap = Map<SankeyNode, NodeGroup & { id: string }>;
 
@@ -2209,7 +2211,11 @@ function switchGroupSet(next: GroupSet) {
   if (next === groupSet) return;
   groupSet = next;
   groups = defaultGroups();
-  // Boxes put in a group by hand go back to automatic if that group is gone.
+  dropOrphanedGroupAssignments();
+}
+
+/** Boxes put in a group by hand go back to automatic if that group is gone. */
+function dropOrphanedGroupAssignments() {
   for (const [name, c] of Array.from(nodeColors)) {
     if (c.startsWith(GROUP_PREFIX) && !manualGroup(name)) nodeColors.delete(name);
   }
@@ -2237,9 +2243,6 @@ function groupColor(g: ColorGroup, theme: ChartTheme): string {
 
 /** Color choice that assigns a box to a group by hand: "group:<id>". */
 const GROUP_PREFIX = "group:";
-
-const THEME_PREFIX = "theme:";
-const INDUSTRY_PREFIX = "industry:";
 
 /** The Generic theme last picked; the dropdown keeps showing it after you edit a colour. */
 let genericTheme = "traffic";
@@ -2297,15 +2300,14 @@ function setupGroupControls() {
     }
     // Group colours read best with flows colored by where they go.
     $<HTMLSelectElement>("link-color").value = "target";
+    syncSampleSelect();
     draw();
   };
   $("reset-groups-btn").onclick = () => {
     // The theme's groups (in a Generic theme, with that theme's colours).
     groups = startingGroups();
     // Boxes assigned to a group you'd added go back to their automatic group.
-    for (const [name, c] of Array.from(nodeColors)) {
-      if (c.startsWith(GROUP_PREFIX) && !manualGroup(name)) nodeColors.delete(name);
-    }
+    dropOrphanedGroupAssignments();
     draw();
   };
   $("add-group-btn").onclick = () => {
@@ -2648,8 +2650,6 @@ function fillTable() {
   $("sample-section").hidden = true;
   const table = $("flow-table");
   const [h1, h2, h3] = current!.headers;
-  const esc = (s: string) =>
-    s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
   const flows = current!.flows;
   tableImbalance = currentImbalance;
 
@@ -2664,24 +2664,24 @@ function fillTable() {
       if ((notPassedOn ? f.source : f.target) === name) last = i;
     });
     if (last < 0) continue;
-    const tip = esc(gapText(name, diff));
+    const tip = escapeHtml(gapText(name, diff));
     const cells = notPassedOn
-      ? `<td class="gap-name">${esc(name)}</td><td>Unaccounted for</td>`
-      : `<td>Unaccounted for</td><td class="gap-name">${esc(name)}</td>`;
-    const row = `<tr class="gap-row" title="${tip}">${cells}<td class="num">${formatValue(Math.abs(diff))}</td></tr>`;
+      ? `<td class="gap-name">${escapeHtml(name)}</td><td>Unaccounted for</td>`
+      : `<td>Unaccounted for</td><td class="gap-name">${escapeHtml(name)}</td>`;
+    const row = `<tr class="gap-row" title="${tip}">${cells}<td class="num">${formatPlainNumber(Math.abs(diff))}</td></tr>`;
     gapAfter.set(last, [...(gapAfter.get(last) ?? []), row]);
   }
 
   const nameCell = (name: string) =>
     dataGaps.has(name)
-      ? `<td class="gap-name" title="${esc(gapText(name, dataGaps.get(name)!))}">${esc(name)}</td>`
-      : `<td>${esc(name)}</td>`;
+      ? `<td class="gap-name" title="${escapeHtml(gapText(name, dataGaps.get(name)!))}">${escapeHtml(name)}</td>`
+      : `<td>${escapeHtml(name)}</td>`;
   table.innerHTML =
-    `<thead><tr><th>${esc(h1)}</th><th>${esc(h2)}</th><th class="num">${esc(h3)}</th></tr></thead><tbody>` +
+    `<thead><tr><th>${escapeHtml(h1)}</th><th>${escapeHtml(h2)}</th><th class="num">${escapeHtml(h3)}</th></tr></thead><tbody>` +
     flows
       .map(
         (f, i) =>
-          `<tr>${nameCell(f.source)}${nameCell(f.target)}<td class="num">${formatValue(f.value)}</td></tr>` +
+          `<tr>${nameCell(f.source)}${nameCell(f.target)}<td class="num">${formatPlainNumber(f.value)}</td></tr>` +
           (gapAfter.get(i) ?? []).join("")
       )
       .join("") +
@@ -2692,14 +2692,14 @@ function fillTable() {
   note.hidden = dataGaps.size === 0;
   note.innerHTML = dataGaps.size
     ? `<strong><span aria-hidden="true">⚠</span> Value is unaccounted for.</strong> Marked in amber below:<ul>` +
-      [...dataGaps].map(([name, diff]) => `<li>${esc(gapText(name, diff))}</li>`).join("") +
+      [...dataGaps].map(([name, diff]) => `<li>${escapeHtml(gapText(name, diff))}</li>`).join("") +
       "</ul>"
     : "";
 }
 
 /** "Account 4: 300 comes in but isn't passed on." or "…: 300 more goes out than comes in." */
 function gapText(name: string, diff: number) {
-  const amount = formatValue(Math.abs(diff));
+  const amount = formatPlainNumber(Math.abs(diff));
   return diff > 0
     ? `${name}: ${amount} comes in but isn't passed on.`
     : `${name}: ${amount} more goes out than comes in.`;
@@ -2750,9 +2750,13 @@ function setupSampleControls() {
       Object.assign(document.createElement("option"), { value: s.id, textContent: s.name })
     );
   }
-  // Start on the subject that matches the Style theme in use.
+  syncSampleSelect();
+}
+
+/** Shows the sample that matches the Style theme in use (Cashflow for the others). */
+function syncSampleSelect() {
   const ind = industryOf();
-  select.value = ind && sampleById(ind) ? ind : "cashflow";
+  $<HTMLSelectElement>("sample-select").value = ind && sampleById(ind) ? ind : "cashflow";
 }
 
 async function insertSampleData() {
@@ -2800,18 +2804,7 @@ function renderPicture(width = chartSize.width ?? EXPORT_WIDTH): SVGSVGElement {
     true,
     chartSize.height
   );
-  const theme = chartTheme(true);
-  renderSankey(svg, layout, {
-    theme,
-    transparent: backgroundMode() === "transparent",
-    groups: groupsFor(layout.nodes, theme),
-    title: chartTitle,
-    linkColor: $<HTMLSelectElement>("link-color").value as LinkColorMode,
-    labels: labelSettings,
-    labelOverrides,
-    colors: chartColors(),
-    margin,
-  });
+  renderSankey(svg, layout, chartLook(layout, chartTheme(true), margin));
   return svg;
 }
 
@@ -2837,20 +2830,21 @@ function popoutContent(width: number): PopoutContent {
         true,
         chartSize.height
       );
-      const gm = groupsFor(layout.nodes, theme);
+      // The same look as everywhere else, as plain JSON for the window.
+      const look = chartLook(layout, theme, margin);
       chart = {
         layout: layoutToModel(layout),
         theme,
-        linkColor: $<HTMLSelectElement>("link-color").value as LinkColorMode,
-        labels: labelSettings,
-        labelOverrides: Array.from(labelOverrides),
-        colors: Array.from(chartColors()),
-        groups: Array.from(gm, ([n, g]): [number, NodeGroup] => [
+        linkColor: look.linkColor,
+        labels: look.labels,
+        labelOverrides: Array.from(look.labelOverrides),
+        colors: Array.from(look.colors),
+        groups: Array.from(look.groups, ([n, g]): [number, NodeGroup] => [
           n.index,
           { name: g.name, color: g.color },
         ]),
         margin,
-        transparent,
+        transparent: look.transparent ?? false,
         title: chartTitle,
         selected: selectedNode,
         size: chartSize,
@@ -2872,15 +2866,6 @@ function popoutContent(width: number): PopoutContent {
     options,
   };
 }
-
-/** The toolbar's options; while popped out they're set from the window's toolbar. */
-const TOOLBAR_OPTION_IDS: ToolbarOptionId[] = [
-  "background-mode",
-  "background-color",
-  "node-order",
-  "end-align",
-  "link-color",
-];
 
 /**
  * Something you did to the chart in the pop-out window: applied here exactly

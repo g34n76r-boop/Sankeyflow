@@ -9,7 +9,8 @@
 
 /* global document, setTimeout, clearTimeout, Element, MouseEvent, PointerEvent, KeyboardEvent, SVGElementTagNameMap, SVGSVGElement, SVGPathElement, SVGRectElement, SVGTextElement, SVGGElement, SVGTSpanElement */
 
-import { linkPath, updateLinkPositions } from "./sankey";
+import { escapeHtml } from "./dom";
+import { balanceDifference, linkPath, updateLinkPositions } from "./sankey";
 import type { SankeyLayout, SankeyLink, SankeyNode } from "./sankey";
 import { findGuides, snapPosition, snapStep } from "./snap";
 import type { Guide } from "./snap";
@@ -88,12 +89,25 @@ export const DARK_THEME: ChartTheme = {
   series: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9", "#e66767"],
 };
 
+/**
+ * A colour as lower-case #rrggbb: a 3-digit "#rgb" is expanded, anything else
+ * comes back lower-cased as it was. (<input type="color"> only accepts #rrggbb.)
+ */
+export function toHex6(c: string): string {
+  const s = /^#?([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(c);
+  return (s ? `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}` : c).toLowerCase();
+}
+
+/** The red, green and blue of a #rgb or #rrggbb colour (NaN if it isn't one). */
+const rgbOf = (c: string) => {
+  const full = toHex6(c).replace("#", "");
+  return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16));
+};
+
 /** Relative luminance (0 = black, 1 = white) of a #rrggbb color. */
-export function luminance(hex: string): number {
-  const h = hex.replace("#", "");
-  const full = h.length === 3 ? [...h].map((x) => x + x).join("") : h;
-  const [r, g, b] = [0, 2, 4].map((i) => {
-    const c = parseInt(full.slice(i, i + 2), 16) / 255;
+function luminance(hex: string): number {
+  const [r, g, b] = rgbOf(hex).map((v) => {
+    const c = v / 255;
     return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
   });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -113,13 +127,8 @@ export function themeForBackground(background: string): ChartTheme {
 const LINK_TINT = 0.55;
 
 /** Mixes a #rrggbb (or #rgb) color toward another by `t` (0 = a, 1 = b). */
-export function mixColors(a: string, b: string, t: number): string {
-  const rgb = (c: string) => {
-    const h = c.replace("#", "");
-    const full = h.length === 3 ? [...h].map((x) => x + x).join("") : h;
-    return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16));
-  };
-  const [ca, cb] = [rgb(a), rgb(b)];
+function mixColors(a: string, b: string, t: number): string {
+  const [ca, cb] = [rgbOf(a), rgbOf(b)];
   if (ca.some(isNaN) || cb.some(isNaN)) return a;
   return (
     "#" +
@@ -172,18 +181,14 @@ export interface RenderOptions {
 const SVG_NS = "http://www.w3.org/2000/svg";
 /** Labels dragged within this distance of their anchor snap back onto it. */
 const LABEL_SNAP = 6;
-/** Flows are solid colors; hovering fades the unrelated ones. */
+/** Flows are solid colors (also when hovered); hovering fades the unrelated ones. */
 const LINK_OPACITY = 1;
-const LINK_OPACITY_HOVER = 1;
 const LINK_OPACITY_FADED = 0.25;
 /** Translucent background behind labels, so they stay readable over flows. */
 const PILL_OPACITY = 0.55;
 const PILL_PAD_X = 4;
 const PILL_PAD_Y = 2;
 const DRAG_THRESHOLD = 3;
-
-export const formatValue = (v: number) =>
-  v.toLocaleString(undefined, { maximumFractionDigits: Math.abs(v) < 10 ? 2 : 0 });
 
 /** A color group a node belongs to ("Money flow" scheme). */
 export interface NodeGroup {
@@ -196,7 +201,7 @@ export interface NodeGroup {
  * color, or neutral gray if it has none. Without: palette slot by order of
  * appearance; past the eighth, neutral.
  */
-export function defaultNodeColor(
+function defaultNodeColor(
   n: SankeyNode,
   theme: ChartTheme,
   groups?: Map<SankeyNode, NodeGroup>
@@ -212,9 +217,11 @@ export function defaultNodeColor(
  */
 export type ColorChoice = string;
 
-export function resolveColor(choice: ColorChoice, theme: ChartTheme): string {
+function resolveColor(choice: ColorChoice, theme: ChartTheme): string {
   if (choice === "neutral") return theme.neutral;
   // "role:spending" etc. — a Money flow category color (follows the theme).
+  // Nothing picks these any more (boxes join a group instead), but charts
+  // saved by older versions can still have them, so they keep working.
   const role = /^role:(\w+)$/.exec(choice);
   if (role) return theme.roles[role[1] as NodeRole] ?? theme.neutral;
   const slot = /^slot:(\d+)$/.exec(choice);
@@ -246,9 +253,6 @@ function el<K extends keyof SVGElementTagNameMap>(
 function setAttrs(e: Element, attrs: Record<string, string | number>) {
   for (const k of Object.keys(attrs)) e.setAttribute(k, String(attrs[k]));
 }
-
-const escapeHtml = (s: string) =>
-  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 interface NodeEls {
   rect: SVGRectElement;
@@ -304,11 +308,8 @@ export interface ChartHandle {
   highlightImbalance(on: boolean): void;
 }
 
-/** Ignores floating-point dust when comparing money in and out. */
-function imbalanceOf(n: SankeyNode): number {
-  const d = n.inValue - n.outValue;
-  return Math.abs(d) < Math.max(n.inValue, n.outValue, 1) * 1e-9 ? 0 : d;
-}
+/** A box's money in minus money out (0 when they match). */
+const imbalanceOf = (n: SankeyNode) => balanceDifference(n.inValue, n.outValue);
 
 export function renderSankey(
   svg: SVGSVGElement,
@@ -744,7 +745,7 @@ export function renderSankey(
 
   const setLinkOpacity = (active: (l: SankeyLink) => boolean) =>
     linkEls.forEach((p, l) =>
-      p.setAttribute("stroke-opacity", String(active(l) ? LINK_OPACITY_HOVER : LINK_OPACITY_FADED))
+      p.setAttribute("stroke-opacity", String(active(l) ? LINK_OPACITY : LINK_OPACITY_FADED))
     );
   const resetLinks = () =>
     linkEls.forEach((p) => p.setAttribute("stroke-opacity", String(LINK_OPACITY)));

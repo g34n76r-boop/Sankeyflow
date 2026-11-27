@@ -79,10 +79,19 @@ function fixed(v: number, decimals: number | null, autoDecimals: number) {
   });
 }
 
+/** Automatic decimals for a value: up to 2 below 10 (e.g. 2.75), none above. */
+const autoDecimals = (v: number) => (Math.abs(v) < 10 ? 2 : 0);
+
 /** A number with the user's symbols, e.g. "$4,200" or "4,200 kg". */
 export function formatNumber(v: number, s: LabelSettings): string {
-  return s.prefix + fixed(v, s.decimals, Math.abs(v) < 10 ? 2 : 0) + s.suffix;
+  return s.prefix + fixed(v, s.decimals, autoDecimals(v)) + s.suffix;
 }
+
+/**
+ * A value as in the data (the Data tab): automatic decimals, without the
+ * label symbols or chosen decimals, which are about how the chart shows it.
+ */
+export const formatPlainNumber = (v: number) => fixed(v, null, autoDecimals(v));
 
 /** A share as a percentage, e.g. "82%" or "8.4%". */
 export function formatPercent(share: number, s: LabelSettings): string {

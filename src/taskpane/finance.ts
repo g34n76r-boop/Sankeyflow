@@ -23,7 +23,7 @@ const KEYWORDS: [NodeRole, RegExp][] = [
   ["account", /\b(accounts?|cards?|transfers?|wallets?|pots?)\b/i],
 ];
 
-export function roleFromName(name: string): NodeRole | null {
+function roleFromName(name: string): NodeRole | null {
   for (const [role, re] of KEYWORDS) if (re.test(name)) return role;
   return null;
 }

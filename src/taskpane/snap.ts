@@ -9,7 +9,7 @@
 import type { SankeyLayout, SankeyNode } from "./sankey";
 
 /** How close (px) a dragged node must get before it snaps. */
-export const SNAP_DISTANCE = 6;
+const SNAP_DISTANCE = 6;
 /** Tolerance (px) for treating two positions as lined up. */
 const EPS = 0.5;
 

@@ -5,8 +5,9 @@
  * changes (edits, rows added or deleted).
  */
 
-/* global document, Excel, Office, OfficeExtension, HTMLElement, HTMLSelectElement, setTimeout, clearTimeout */
+/* global document, Excel, Office, OfficeExtension, HTMLSelectElement, setTimeout, clearTimeout */
 
+import { $ } from "./dom";
 import { friendlyError } from "./errors";
 import { parseNumber } from "./numbers";
 
@@ -51,7 +52,7 @@ const CHANGE_DEBOUNCE_MS = 500;
  * with a blank or non-numeric value (other text, TRUE/FALSE, errors such as
  * #N/A) are ignored.
  */
-export function parseTableRows(values: unknown[][]): { rows: TableRow[]; ignored: number } {
+function parseTableRows(values: unknown[][]): { rows: TableRow[]; ignored: number } {
   const rows: TableRow[] = [];
   let ignored = 0;
   for (const r of values) {
@@ -64,8 +65,6 @@ export function parseTableRows(values: unknown[][]): { rows: TableRow[]; ignored
   }
   return { rows, ignored };
 }
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 let options: TablePickerOptions;
 
@@ -113,7 +112,7 @@ async function startWatching(id: string, signature: string) {
 }
 
 /** Stops watching the current table (e.g. another source was loaded). Safe to call anytime. */
-export async function stopWatching() {
+async function stopWatching() {
   if (changeTimer) clearTimeout(changeTimer);
   changeTimer = undefined;
   readSeq++; // discard any read still in flight

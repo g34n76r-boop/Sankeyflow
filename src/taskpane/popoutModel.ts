@@ -56,8 +56,18 @@ export interface PopoutContent {
 }
 
 /** The toolbar's dropdowns (by select id) and the custom background colour. */
-export type ToolbarOptionId = "background-mode" | "node-order" | "end-align" | "link-color" | "background-color";
+export type ToolbarOptionId =
+  "background-mode" | "node-order" | "end-align" | "link-color" | "background-color";
 export type ToolbarOptions = Record<ToolbarOptionId, string>;
+
+/** Every toolbar option, by its control's id (the same in the pane and the window). */
+export const TOOLBAR_OPTION_IDS: ToolbarOptionId[] = [
+  "background-mode",
+  "background-color",
+  "node-order",
+  "end-align",
+  "link-color",
+];
 
 /** Sent back by the window as you use the chart there. */
 export type PopoutAction =

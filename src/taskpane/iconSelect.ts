@@ -32,7 +32,7 @@ const O = (x: number, y: number, w: number, h: number) =>
 const EDGE = `<path d="M18.5 2v16" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 2" opacity="0.6" shape-rendering="crispEdges"/>`;
 
 /** Icons for each toolbar dropdown's options, by select id, then option value. */
-export const TOOLBAR_ICONS: Record<string, Record<string, string>> = {
+const TOOLBAR_ICONS: Record<string, Record<string, string>> = {
   "background-mode": {
     // Half empty, half solid: follows the theme.
     auto: ICON(O(3, 3, 14, 14) + F(10, 3, 7, 14)),
@@ -73,7 +73,7 @@ const CARET = `<svg class="icon-select-caret" viewBox="0 0 10 10" width="10" hei
 const valueProp = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!;
 
 /** Puts an icon dropdown in place of `select` (which stays, hidden). */
-export function attachIconSelect(select: HTMLSelectElement, icons: Record<string, string>) {
+function attachIconSelect(select: HTMLSelectElement, icons: Record<string, string>) {
   const wrap = document.createElement("span");
   wrap.className = "icon-select";
   select.after(wrap);

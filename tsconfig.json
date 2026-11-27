@@ -1,18 +1,13 @@
 {
   "compilerOptions": {
-    "allowJs": true,
     "esModuleInterop": true,
-    "experimentalDecorators": true,
     "forceConsistentCasingInFileNames": true,
-    "jsx": "react",
     "module": "node16",
     "moduleResolution": "node16",
-    "noEmitOnError": true,
-    "outDir": "lib",
+    "noEmit": true,
     "resolveJsonModule": true,
-    "sourceMap": true,
     "strict": true,
-    "target": "es6",
+    "target": "es2020",
     "skipLibCheck": true,
     "types": [
       "node",
@@ -20,17 +15,11 @@
       "office-runtime"
     ],
     "lib": [
-      "es2015",
+      "es2020",
       "dom"
     ]
   },
-  "exclude": [
-    "node_modules",
-    "dist",
-    "lib",
-    "lib-amd"
-  ],
-  "ts-node": { 
-    "files": true 
-  }
+  "include": [
+    "src"
+  ]
 }

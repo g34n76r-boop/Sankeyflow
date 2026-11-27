@@ -7,6 +7,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SankeyFlow chart</title>
     <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <!-- Shared with the task pane; this page sets its colours (--cc-*) below. -->
+    <link href="../taskpane/chart-components.css" rel="stylesheet" type="text/css" />
     <style>
         html, body {
             margin: 0;
@@ -17,6 +19,19 @@
             --bg: #ffffff;
             --text: #52514e;
             --bar-height: 36px;
+            /* The shared chart components (chart-components.css): on the
+               chart's own background and text colours. */
+            --cc-accent: #0f6cbd;
+            --cc-border: rgba(128, 128, 128, 0.35);
+            --cc-control-border: rgba(128, 128, 128, 0.45);
+            --cc-surface: var(--bg);
+            --cc-text: var(--text);
+            --cc-hover: rgba(128, 128, 128, 0.18);
+            --cc-button-bg: transparent;
+            --cc-button-hover: rgba(128, 128, 128, 0.18);
+            --cc-input-bg: var(--bg);
+            --cc-tooltip-bg: var(--bg);
+            --cc-tooltip-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
             background: var(--bg);
             color: var(--text);
             font: 14px "Segoe UI", system-ui, sans-serif;
@@ -71,66 +86,10 @@
             user-select: none;
         }
 
-        /* Dotted lines along the chart's right and bottom edges, so its size is
-           clear (especially zoomed out). Hover one for that dimension; click it
-           to change it (chartEdges.ts). CSS only: not part of the chart itself,
-           and drawn over it so the chart keeps its exact size. */
-        .chart-edges {
-            position: relative;
-            width: max-content;
-        }
-
+        /* The chart's dotted edges (chartEdges.ts): shared styles in
+           chart-components.css; this window's own below. */
         .chart-edge {
-            position: absolute;
             z-index: 1;
-            cursor: pointer;
-            outline: none;
-        }
-
-        .chart-edge-right {
-            top: 0;
-            right: 0;
-            bottom: 0;
-            width: 7px;
-            border-right: 1px dotted rgba(128, 128, 128, 0.7);
-        }
-
-        .chart-edge-bottom {
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 7px;
-            border-bottom: 1px dotted rgba(128, 128, 128, 0.7);
-        }
-
-        .chart-edge:hover,
-        .chart-edge:focus-visible,
-        .chart-edge.active {
-            border-color: #0f6cbd;
-            border-right-style: solid;
-            border-bottom-style: solid;
-        }
-
-        .chart-edge-right:hover,
-        .chart-edge-right:focus-visible,
-        .chart-edge-right.active {
-            border-right-width: 2px;
-        }
-
-        .chart-edge-bottom:hover,
-        .chart-edge-bottom:focus-visible,
-        .chart-edge-bottom.active {
-            border-bottom-width: 2px;
-        }
-
-        .chart-edge-label,
-        .chart-edge-pop {
-            position: fixed;
-            z-index: 20;
-            border: 1px solid rgba(128, 128, 128, 0.35);
-            background: var(--bg);
-            color: var(--text);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
         }
 
         body.transparent .chart-edge-label,
@@ -138,49 +97,9 @@
             background: #ffffff;
         }
 
-        .chart-edge-label {
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            white-space: nowrap;
-            pointer-events: none;
-        }
-
-        .chart-edge-pop {
-            padding: 8px 10px;
-            border-radius: 6px;
-            font-size: 13px;
-        }
-
-        .chart-edge-pop-row {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .chart-edge-input {
-            width: 7em;
-            padding: 3px 6px;
-            border: 1px solid rgba(128, 128, 128, 0.45);
-            border-radius: 4px;
-            background: var(--bg);
-            color: var(--text);
-            font: inherit;
-        }
-
-        .chart-edge-input:focus-visible {
-            outline: 2px solid #0f6cbd;
-            outline-offset: -1px;
-        }
-
         .chart-edge-pop-unit,
         .chart-edge-pop-hint {
-            font-size: 11px;
             opacity: 0.7;
-        }
-
-        .chart-edge-pop-hint {
-            margin-top: 5px;
         }
 
         #chart-svg rect[role="button"]:focus-visible {
@@ -188,32 +107,8 @@
             stroke-width: 2;
         }
 
-        /* Hover details, as in the task pane. */
-        .tooltip {
-            position: absolute;
-            z-index: 2;
-            max-width: 200px;
-            padding: 6px 10px;
-            border: 1px solid rgba(128, 128, 128, 0.35);
-            border-radius: 6px;
-            background: var(--bg);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-            font-size: 12px;
-            pointer-events: none;
-        }
-
-        .tt-title {
-            font-weight: 600;
-        }
-
-        .tt-value {
-            font-size: 16px;
-            font-weight: 600;
-        }
-
+        /* Hover details (shared styles in chart-components.css). */
         .tt-hint {
-            margin-top: 4px;
-            font-size: 11px;
             opacity: 0.75;
         }
 
@@ -270,94 +165,19 @@
             padding: 0;
         }
 
-        /* Icon dropdowns (iconSelect.ts), styled as in the task pane. */
-        .icon-select {
-            position: relative;
-            display: flex;
-        }
-
-        .icon-select-btn {
-            display: flex;
-            align-items: center;
-            gap: 1px;
-            height: 26px;
-            padding: 0 3px 0 4px;
-            border: 1px solid rgba(128, 128, 128, 0.45);
-            border-radius: 5px;
-            background: transparent;
+        /* Icon dropdowns (iconSelect.ts): shared styles in chart-components.css. */
+        .icon-select-btn,
+        .icon-select-item {
             color: var(--text);
-            cursor: pointer;
-        }
-
-        .icon-select-btn:hover,
-        .icon-select-btn.active {
-            border-color: #0f6cbd;
-            background: rgba(128, 128, 128, 0.18);
-        }
-
-        .icon-select-btn:focus-visible {
-            outline: 2px solid #0f6cbd;
-            outline-offset: 1px;
         }
 
         .icon-select-btn svg,
         .icon-select-item svg {
-            display: block;
             flex: none;
-        }
-
-        .icon-select-caret {
-            opacity: 0.6;
-        }
-
-        .icon-select-menu {
-            position: absolute;
-            top: calc(100% + 4px);
-            left: 0;
-            z-index: 6;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            padding: 4px;
-            border: 1px solid rgba(128, 128, 128, 0.35);
-            border-radius: 6px;
-            background: var(--bg);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
         }
 
         body.transparent .icon-select-menu {
             background: #ffffff;
-        }
-
-        .icon-select-menu.align-right {
-            left: auto;
-            right: 0;
-        }
-
-        .icon-select-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            height: 31px;
-            padding: 0 10px 0 6px;
-            border: 1px solid transparent;
-            border-radius: 5px;
-            background: transparent;
-            color: var(--text);
-            font: inherit;
-            white-space: nowrap;
-            text-align: left;
-            cursor: pointer;
-        }
-
-        .icon-select-item:hover,
-        .icon-select-item:focus-visible {
-            background: rgba(128, 128, 128, 0.18);
-            outline: none;
-        }
-
-        .icon-select-item.selected {
-            border-color: #0f6cbd;
         }
 
         /* A transparent chart's --bg can't back the bar: keep it solid. */
@@ -422,93 +242,17 @@
             pointer-events: none;
         }
 
-        /* Chart size menu, opened from the dimensions icon. */
-        .size-menu-wrap {
-            position: relative;
-            display: flex;
-        }
-
+        /* Chart size menu (sizeMenu.ts): shared styles in chart-components.css. */
         .chart-tool.active {
             opacity: 1;
             background: rgba(128, 128, 128, 0.18);
             color: #0f6cbd;
         }
 
-        .size-menu {
-            position: absolute;
-            top: calc(100% + 4px);
-            left: 0;
-            width: 210px;
-            padding: 10px 12px 12px;
-            border: 1px solid rgba(128, 128, 128, 0.35);
-            border-radius: 8px;
-            background: var(--bg);
-            color: var(--text);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
-            font-size: 13px;
-        }
-
-        .size-menu-title {
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-
-        .size-menu-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 6px;
-        }
-
-        .size-menu-row > span:first-child {
-            width: 3.5em;
-        }
-
-        .size-menu-input {
-            flex: 1;
-            min-width: 0;
-            padding: 4px 6px;
-            border: 1px solid rgba(128, 128, 128, 0.45);
-            border-radius: 4px;
-            background: var(--bg);
-            color: var(--text);
-            font: inherit;
-        }
-
-        .size-menu-input:focus-visible {
-            outline: 2px solid #0f6cbd;
-            outline-offset: -1px;
-        }
-
         .size-menu-unit,
         .size-menu-hint {
             opacity: 0.7;
             font-size: 11px;
-        }
-
-        .size-menu-hint {
-            margin: 4px 0 10px;
-            line-height: 1.35;
-        }
-
-        .size-menu-auto {
-            width: 100%;
-            padding: 5px 8px;
-            border: 1px solid rgba(128, 128, 128, 0.45);
-            border-radius: 4px;
-            background: transparent;
-            color: var(--text);
-            font: inherit;
-            cursor: pointer;
-        }
-
-        .size-menu-auto:hover:not(:disabled) {
-            background: rgba(128, 128, 128, 0.18);
-        }
-
-        .size-menu-auto:disabled {
-            opacity: 0.45;
-            cursor: default;
         }
 
         [hidden] {

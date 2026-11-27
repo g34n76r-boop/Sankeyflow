@@ -4,6 +4,8 @@
  * names are chosen to show off that theme's colour groups.
  */
 
+import { INDUSTRY_PREFIX, THEME_PREFIX } from "./domains";
+
 export interface Sample {
   id: string;
   name: string;
@@ -22,7 +24,7 @@ export const SAMPLES: Sample[] = [
     // then out to bills, everyday spending, savings pots and what's left.
     id: "cashflow",
     name: "Cashflow",
-    theme: "theme:default",
+    theme: THEME_PREFIX + "default",
     rows: [
       HEADER,
       ["Salary", "Current Account", 3800],
@@ -60,7 +62,7 @@ export const SAMPLES: Sample[] = [
     // An income statement (6 stages), in £k.
     id: "finance",
     name: "Finance",
-    theme: "industry:finance",
+    theme: INDUSTRY_PREFIX + "finance",
     rows: [
       HEADER,
       ["Products", "Revenue", 300],
@@ -84,7 +86,7 @@ export const SAMPLES: Sample[] = [
     // Units through a distribution network (5 stages).
     id: "supply",
     name: "Supply chain",
-    theme: "industry:supply",
+    theme: INDUSTRY_PREFIX + "supply",
     rows: [
       HEADER,
       ["Supplier A", "Inbound port", 400],
@@ -107,7 +109,7 @@ export const SAMPLES: Sample[] = [
     // Kilograms of material through a production line (6 stages).
     id: "manufacturing",
     name: "Manufacturing",
-    theme: "industry:manufacturing",
+    theme: INDUSTRY_PREFIX + "manufacturing",
     rows: [
       HEADER,
       ["Steel coil", "Cutting", 600],
@@ -129,7 +131,7 @@ export const SAMPLES: Sample[] = [
     // A recruitment funnel (6 stages), in candidates.
     id: "hr",
     name: "HR",
-    theme: "industry:hr",
+    theme: INDUSTRY_PREFIX + "hr",
     rows: [
       HEADER,
       ["LinkedIn", "Applications", 320],
@@ -153,7 +155,7 @@ export const SAMPLES: Sample[] = [
     // A sales pipeline (6 stages), in leads.
     id: "sales",
     name: "Sales",
-    theme: "industry:sales",
+    theme: INDUSTRY_PREFIX + "sales",
     rows: [
       HEADER,
       ["Website", "Leads", 600],

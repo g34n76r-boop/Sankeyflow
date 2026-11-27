@@ -12,6 +12,7 @@ import type { LabelSettings, NodeLabelOverride } from "./labels";
 import type { NodePosition } from "./sankey";
 import type { NodeRole } from "./finance";
 import type { IndustryId, Tone } from "./domains";
+import { $ } from "./dom";
 
 /* ---------- Types shared with excel.ts ---------- */
 
@@ -210,9 +211,11 @@ export function sourceText(s: SavedSource): string {
 
 /* ---------- Memory tab ---------- */
 
+/**
+ * What the Memory tab needs. The tab is only shown while no chart is loaded,
+ * so none of the listed diagrams is ever the open one.
+ */
 export interface MemoryView {
-  /** The diagram open in the pane (null when nothing loaded, or not saved yet). */
-  openId: string | null;
   /** Workbook tables that exist now (to mark saved diagrams whose table is gone). */
   tables: { id: string; name: string }[] | null;
   /** A short description of the diagram's colour theme. */
@@ -221,8 +224,6 @@ export interface MemoryView {
   onForget: (d: SavedDiagram) => void;
   onRename: (d: SavedDiagram, name: string) => void;
 }
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -276,8 +277,6 @@ export function renderMemory(view: MemoryView) {
   for (const d of diagrams) {
     const li = el("li", "memory-card");
     li.dataset.diagram = d.id;
-    const isOpen = d.id === view.openId;
-    if (isOpen) li.classList.add("is-open");
 
     const head = el("div", "memory-head");
     const name = el("input", "text-input memory-name") as HTMLInputElement;
@@ -297,7 +296,6 @@ export function renderMemory(view: MemoryView) {
       }
     });
     head.appendChild(name);
-    if (isOpen) head.appendChild(el("span", "memory-badge", "Open"));
     li.appendChild(head);
 
     // Where the data comes from (and whether it's still there).
@@ -327,11 +325,9 @@ export function renderMemory(view: MemoryView) {
 
     // [Open] [Forget]; Forget asks first, in a small box under the button.
     const actions = el("div", "memory-actions");
-    const open = el("button", "btn", isOpen ? "Reopen" : "Open") as HTMLButtonElement;
+    const open = el("button", "btn", "Open") as HTMLButtonElement;
     open.type = "button";
-    open.title = isOpen
-      ? "Reload this diagram as it was last saved"
-      : "Open this diagram (its data and settings)";
+    open.title = "Open this diagram (its data and settings)";
     open.onclick = () => view.onOpen(d);
 
     const wrap = el("span", "clear-wrap");
@@ -348,7 +344,6 @@ export function renderMemory(view: MemoryView) {
         "p",
         "confirm-text",
         "Its saved settings and data link are removed from this workbook" +
-          (isOpen ? ", and it's closed in the pane" : "") +
           ". Your data isn't changed" +
           (d.pictures.length ? ", and pictures already in the sheet are kept." : ".")
       )

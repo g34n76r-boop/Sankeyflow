@@ -27,7 +27,7 @@ let reportError: ((message: string) => void) | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let seq = 0;
 
-export const popoutSupported = () => Office.context.requirements.isSetSupported("DialogApi", "1.2");
+const popoutSupported = () => Office.context.requirements.isSetSupported("DialogApi", "1.2");
 
 export const popoutOpen = () => dialog !== null;
 
