@@ -2034,11 +2034,8 @@ function syncColorThemeSelect() {
 function updateGroupWording() {
   const ind = industryOf(groupSet);
   const preset = ind ? industryPreset(ind) : undefined;
-  $("stage-col-head").textContent = preset
-    ? preset.stageWord
-    : groupSet === "generic"
-      ? "Stage"
-      : "Account";
+  // An industry theme has its own word (e.g. "Line item"); otherwise "Stage".
+  $("stage-col-head").textContent = preset ? preset.stageWord : "Stage";
   const hint = $("scheme-hint-text");
   if (groupSet === "generic") {
     // Same rules as Cashflow, described with the (numbered) group names.
