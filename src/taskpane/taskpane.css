@@ -30,8 +30,7 @@
     --warning-bg: #fef3c7;
     --warning-border: #f2c94c;
     --warning-ink: #7a4a00;
-    /* Chart toolbar: a soft cool-grey bar, apart from the chart and the page. */
-    --toolbar-bg: #e9ebee;
+    /* Chart toolbar: on the page's own colour, with a faint outline. */
     --toolbar-border: rgba(30, 40, 55, 0.15);
     --toolbar-hover: #d9dde2;
     --toolbar-icon: #3d3c39; /* the one colour for every toolbar icon */
@@ -81,7 +80,6 @@
     --warning-bg: #3a2a05;
     --warning-border: #7a5a12;
     --warning-ink: #fbd38d;
-    --toolbar-bg: #24272b;
     --toolbar-border: rgba(190, 200, 215, 0.16);
     --toolbar-hover: #32363c;
     --toolbar-icon: #d6d5cd;
@@ -1108,7 +1106,7 @@ th.num {
     gap: 2px;
     margin-bottom: 4px;
     padding: 2px 4px;
-    background: var(--toolbar-bg);
+    background: var(--page); /* the same as the rest of the pane */
     border: 1px solid var(--toolbar-border);
     border-radius: 6px;
 }
