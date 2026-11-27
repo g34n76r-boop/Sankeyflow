@@ -45,6 +45,16 @@ module.exports = async (env, options) => {
           use: "html-loader",
         },
         {
+          // Stylesheets linked from the HTML pages, copied as files. Fixed names:
+          // with a content hash in the name, production builds renamed them after
+          // minifying while the pages still linked the old names (no styles at all).
+          test: /\.css$/,
+          type: "asset/resource",
+          generator: {
+            filename: "[name][ext]",
+          },
+        },
+        {
           test: /\.(png|jpg|jpeg|gif|ico)$/,
           type: "asset/resource",
           generator: {
