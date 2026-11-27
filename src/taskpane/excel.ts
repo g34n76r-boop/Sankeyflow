@@ -1164,13 +1164,17 @@ function defaultDiagramName(source: DataSource): string {
   return name;
 }
 
-/** Saves the loaded chart (its data link and settings) in the workbook. */
-async function saveCurrent() {
+/**
+ * Saves the loaded chart (its data link and settings) in the workbook. A chart
+ * saved before keeps its name; the first save uses `name` (asked for by the
+ * save box), or the default name.
+ */
+async function saveCurrent(name?: string) {
   if (!current) return;
   const existing = diagramById(openDiagramId);
   const d: SavedDiagram = {
     id: existing?.id ?? newDiagramId(),
-    name: existing?.name ?? defaultDiagramName(current.source),
+    name: existing?.name ?? (name?.trim() || defaultDiagramName(current.source)),
     source: clone(current.source),
     settings: captureSettings(),
     pictures: [...(existing?.pictures ?? []), ...pendingPictures],
@@ -1297,9 +1301,79 @@ function requestOpen(d: SavedDiagram) {
   });
 }
 
-/** Save settings. */
+/**
+ * Saves the loaded chart. Its first save asks for a name first (see
+ * setupSaveControls), then runs `then` (e.g. closing it); later saves don't ask.
+ * Set up by setupSaveControls.
+ */
+let requestSave: (then?: () => Promise<void>) => void = () => undefined;
+
+/**
+ * Save. A chart's first save opens a small box under the button to name it,
+ * starting from its table's name or its cells; Enter or Save saves, Escape,
+ * Cancel or a click elsewhere closes the box without saving.
+ */
 function setupSaveControls() {
-  $("save-btn").onclick = () => run(saveCurrent);
+  const btn = $<HTMLButtonElement>("save-btn");
+  const pop = $("save-name-pop");
+  const input = $<HTMLInputElement>("save-name-input");
+  const ok = $<HTMLButtonElement>("save-name-ok");
+  /** What to do once the chart is saved (Save and close: close it). */
+  let after: (() => Promise<void>) | undefined;
+
+  const show = (open: boolean) => {
+    pop.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    if (!open) after = undefined;
+  };
+  const save = (name?: string) => {
+    const then = after;
+    show(false);
+    run(async () => {
+      await saveCurrent(name);
+      if (then) await then();
+    });
+  };
+
+  requestSave = (then) => {
+    if (!current) return;
+    if (diagramById(openDiagramId)) {
+      // Saved before: save under its name straight away.
+      after = then;
+      save();
+      return;
+    }
+    after = then;
+    input.value = defaultDiagramName(current.source);
+    ok.textContent = then ? "Save and close" : "Save";
+    ok.disabled = false;
+    show(true);
+    input.focus();
+    input.select();
+  };
+
+  btn.onclick = () => (pop.hidden ? requestSave() : show(false));
+  // A name is needed: Save is off while the box is empty.
+  input.addEventListener("input", () => (ok.disabled = !input.value.trim()));
+  ok.onclick = () => {
+    if (input.value.trim()) save(input.value);
+  };
+  $("save-name-cancel").onclick = () => {
+    show(false);
+    btn.focus();
+  };
+  pop.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target === input) {
+      e.preventDefault();
+      if (input.value.trim()) save(input.value);
+    } else if (e.key === "Escape") {
+      show(false);
+      btn.focus();
+    }
+  });
+  document.addEventListener("mousedown", (e) => {
+    if (!pop.hidden && !$("save-wrap").contains(e.target as HTMLElement)) show(false);
+  });
 }
 
 /** When the pane opens: the diagram that was open last time, if any. */
@@ -1798,8 +1872,8 @@ function setupClearConfirm() {
   };
   save.onclick = () => {
     show(false);
-    run(async () => {
-      await saveCurrent();
+    // Saved first (a chart saved for the first time is named in the save box), then closed.
+    requestSave(async () => {
       const name = diagramById(openDiagramId)?.name;
       await clearData();
       if (name) setStatus(`Saved "${name}". Open it again any time from the Memory tab.`);

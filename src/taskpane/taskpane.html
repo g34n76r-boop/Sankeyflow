@@ -77,8 +77,22 @@
                             </div>
                         </div>
                     </span>
-                    <button id="save-btn" class="btn primary" type="button" disabled
-                            title="Save this chart's data link and settings in the workbook"><svg class="btn-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M1.5 1.5h10l3 3v10h-13z" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/><rect x="4" y="2" width="6" height="4" fill="currentColor" shape-rendering="crispEdges"/><rect x="3.5" y="8.5" width="9" height="6" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges"/></svg><span id="save-label">Save</span></button>
+                    <span class="clear-wrap" id="save-wrap">
+                        <button id="save-btn" class="btn primary" type="button" disabled
+                                title="Save this chart's data link and settings in the workbook"
+                                aria-controls="save-name-pop" aria-expanded="false"><svg class="btn-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M1.5 1.5h10l3 3v10h-13z" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/><rect x="4" y="2" width="6" height="4" fill="currentColor" shape-rendering="crispEdges"/><rect x="3.5" y="8.5" width="9" height="6" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges"/></svg><span id="save-label">Save</span></button>
+                        <!-- The first save of a chart asks for its name (excel.ts). -->
+                        <div id="save-name-pop" class="confirm-pop confirm-left save-name-pop" role="dialog" aria-modal="false"
+                             aria-labelledby="save-name-title" hidden>
+                            <p id="save-name-title" class="confirm-title">Save this chart</p>
+                            <label class="confirm-text" for="save-name-input">Name it, so you can find it again in the Memory tab.</label>
+                            <input id="save-name-input" class="text-input" type="text" maxlength="60" autocomplete="off" />
+                            <div class="confirm-actions">
+                                <button id="save-name-cancel" class="btn" type="button">Cancel</button>
+                                <button id="save-name-ok" class="btn primary" type="button">Save</button>
+                            </div>
+                        </div>
+                    </span>
                     <button id="refresh-btn" class="btn icon-btn" type="button" disabled title="Reload the data (the cells or table you loaded)" aria-label="Reload the data"><svg class="btn-icon" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false"><path d="M16 10A6 6 0 1 1 10 4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 0.5 14.5 4 10 7.5Z" fill="currentColor"/></svg></button>
                 </div>
                 <p id="table-summary" class="table-summary" hidden></p>

@@ -765,6 +765,15 @@ summary:focus-visible {
     line-height: 1.4;
 }
 
+/* "Save this chart" box: its label sits above the name field. */
+.save-name-pop label {
+    display: block;
+}
+
+.save-name-pop .text-input {
+    margin-bottom: 10px;
+}
+
 .confirm-actions {
     display: flex;
     flex-wrap: wrap;
