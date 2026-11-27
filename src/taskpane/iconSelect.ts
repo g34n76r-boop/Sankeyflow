@@ -40,11 +40,17 @@ const TOOLBAR_ICONS: Record<string, Record<string, string>> = {
     dark: ICON(F(3, 3, 14, 14)),
     // A checkerboard of 4px squares.
     transparent: ICON(
-      O(3, 3, 14, 14) + F(4, 4, 4, 4, 0.55) + F(12, 4, 4, 4, 0.55) + F(8, 8, 4, 4, 0.55) +
-        F(4, 12, 4, 4, 0.55) + F(12, 12, 4, 4, 0.55)
+      O(3, 3, 14, 14) +
+        F(4, 4, 4, 4, 0.55) +
+        F(12, 4, 4, 4, 0.55) +
+        F(8, 8, 4, 4, 0.55) +
+        F(4, 12, 4, 4, 0.55) +
+        F(12, 12, 4, 4, 0.55)
     ),
     // A solid colour drop.
-    custom: ICON(`<path d="M10 2.5C13 6.5 15 9 15 12a5 5 0 0 1-10 0c0-3 2-5.5 5-9.5Z" fill="currentColor"/>`),
+    custom: ICON(
+      `<path d="M10 2.5C13 6.5 15 9 15 12a5 5 0 0 1-10 0c0-3 2-5.5 5-9.5Z" fill="currentColor"/>`
+    ),
   },
   "node-order": {
     // Rows as they come in the data: the colours mixed.

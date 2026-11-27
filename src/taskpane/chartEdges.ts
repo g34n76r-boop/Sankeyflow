@@ -157,7 +157,11 @@ export function attachChartEdges(
   document.addEventListener(
     "pointerdown",
     (e) => {
-      if (openAxis && !pop.contains(e.target as Node) && !(e.target as HTMLElement).closest?.(".chart-edge"))
+      if (
+        openAxis &&
+        !pop.contains(e.target as Node) &&
+        !(e.target as HTMLElement).closest?.(".chart-edge")
+      )
         close(true);
     },
     true

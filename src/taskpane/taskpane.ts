@@ -2522,7 +2522,8 @@ function popoutAction(a: PopoutAction) {
     if (!TOOLBAR_OPTION_IDS.includes(a.id)) return;
     const el = $<HTMLInputElement>(a.id);
     if (el.value === a.value) return;
-    if (el instanceof HTMLSelectElement && !Array.from(el.options).some((o) => o.value === a.value)) return;
+    if (el instanceof HTMLSelectElement && !Array.from(el.options).some((o) => o.value === a.value))
+      return;
     el.value = a.value;
     el.dispatchEvent(new Event(a.id === "background-color" ? "input" : "change"));
     return;
