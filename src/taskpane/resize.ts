@@ -6,34 +6,13 @@
  * the keyboard: focus it and use the arrow keys. When the preview has a
  * horizontal scroll bar, the bar sits just above it.
  *
- * The chart's own size is set only from the size menu (sizeMenu.ts).
+ * The chart's own size is set only from the size menu and its dotted edges
+ * (chartSize.ts).
  */
 
 /* global document, HTMLElement, PointerEvent, KeyboardEvent */
 
-export const MIN_CHART_W = 320;
-export const MAX_CHART_W = 2400;
-export const MIN_CHART_H = 160;
-export const MAX_CHART_H = 2000;
-
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-
-/** The allowed range for each of the chart's dimensions, in px. */
-export const CHART_SIZE_LIMITS: Record<"width" | "height", [number, number]> = {
-  width: [MIN_CHART_W, MAX_CHART_W],
-  height: [MIN_CHART_H, MAX_CHART_H],
-};
-
-/**
- * A chart width or height typed into a box: whole px within the limits, or
- * null (automatic) when blank or not a number.
- */
-export function parseChartSize(raw: string, axis: "width" | "height"): number | null {
-  const v = Number(raw);
-  if (raw.trim() === "" || !Number.isFinite(v)) return null;
-  const [lo, hi] = CHART_SIZE_LIMITS[axis];
-  return Math.round(clamp(v, lo, hi));
-}
 
 /** Limits for the preview area's height. */
 const MIN_VIEW_H = 120;

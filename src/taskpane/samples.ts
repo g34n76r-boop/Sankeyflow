@@ -24,7 +24,7 @@ export const SAMPLES: Sample[] = [
     // then out to bills, everyday spending, savings pots and what's left.
     id: "cashflow",
     name: "Cashflow",
-    theme: THEME_PREFIX + "default",
+    theme: THEME_PREFIX + "cashflow",
     rows: [
       HEADER,
       ["Salary", "Current Account", 3800],

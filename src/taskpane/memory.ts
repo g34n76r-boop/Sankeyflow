@@ -10,19 +10,26 @@
 import type { ChartTitle, ColorChoice, LinkColorMode } from "./chart";
 import type { LabelSettings, NodeLabelOverride } from "./labels";
 import type { NodePosition } from "./sankey";
+import type { ChartSize } from "./chartSize";
 import type { NodeRole } from "./finance";
 import type { IndustryId, Tone } from "./domains";
 import { $ } from "./dom";
 
-/* ---------- Types shared with excel.ts ---------- */
+/* ---------- Types shared with taskpane.ts ---------- */
 
 export type BackgroundMode = "auto" | "white" | "dark" | "transparent" | "custom";
 
 /**
- * Which set of groups is in use: "money" (Default: Income, Accounts, …),
- * "generic" (Traffic light, Ocean, … : Group 1…Group 5), or an industry.
+ * Which set of groups is in use: Cashflow (Income, Accounts, …), "generic"
+ * (Traffic light, Ocean, … : Group 1…Group 5), or an industry.
  */
-export type GroupSet = "money" | "generic" | IndustryId;
+export type GroupSet = typeof CASHFLOW | "generic" | IndustryId;
+
+/**
+ * The Cashflow set of groups. Saved charts store it under its original name,
+ * "money", so that value stays.
+ */
+export const CASHFLOW = "money";
 
 /**
  * A color group. The five built-in groups have a `role` (used by the
@@ -35,7 +42,7 @@ export interface ColorGroup {
   color: string | null;
   /** Words that put a box in this group (checked before the built-in rules). */
   keywords: string[];
-  /** Money flow groups: the role the name-guessing rules assign. */
+  /** Cashflow groups: the role the name-guessing rules assign. */
   role?: NodeRole;
   /** Industry groups: theme-aware colour, and the position whose unmatched boxes land here. */
   tone?: Tone;
@@ -61,7 +68,7 @@ export interface DiagramSettings {
   linkColor: LinkColorMode;
   endAlign: "left" | "justify";
   nodeOrder: "data" | "color";
-  chartSize: { width: number | null; height: number | null };
+  chartSize: ChartSize;
   summaryCollapsed: boolean;
 }
 
@@ -157,13 +164,17 @@ export function findBySource(src: SavedSource): SavedDiagram | undefined {
   );
 }
 
-/** Adds the diagram, or replaces the saved one with the same ID. */
-export async function saveDiagram(d: SavedDiagram) {
+/**
+ * Adds the diagram, or replaces the saved one with the same ID. With `open`,
+ * it's also remembered as the open diagram (reopened with the workbook), in
+ * the same save.
+ */
+export async function saveDiagram(d: SavedDiagram, opts: { open?: boolean } = {}) {
   const all = listDiagrams();
   const i = all.findIndex((x) => x.id === d.id);
   if (i >= 0) all[i] = d;
   else all.push(d);
-  await persist({ [DIAGRAMS_KEY]: all, [OPEN_KEY]: d.id });
+  await persist({ [DIAGRAMS_KEY]: all, ...(opts.open ? { [OPEN_KEY]: d.id } : {}) });
 }
 
 export async function renameDiagram(id: string, name: string) {

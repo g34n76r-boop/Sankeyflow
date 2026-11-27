@@ -48,7 +48,7 @@ export interface ChartTheme {
   guide: string;
   /** Amber, for marking values that are unaccounted for. */
   warning: string;
-  /** "Money flow" scheme colors, sampled from the reference image (Example_flow.png). */
+  /** Cashflow theme colors, sampled from the reference image (Example_flow.png). */
   roles: Record<NodeRole, string>;
   series: string[];
 }
@@ -165,7 +165,7 @@ export interface RenderOptions {
   /** User-chosen node colors by node name; overrides the palette. */
   colors: Map<string, string>;
   /**
-   * Present for the "Money flow" scheme: each node's color group (name and
+   * Present for the Cashflow theme: each node's color group (name and
    * color). A node missing from the map is ungrouped and drawn in neutral gray.
    */
   groups?: Map<SankeyNode, NodeGroup>;
@@ -190,14 +190,14 @@ const PILL_PAD_X = 4;
 const PILL_PAD_Y = 2;
 const DRAG_THRESHOLD = 3;
 
-/** A color group a node belongs to ("Money flow" scheme). */
+/** A color group a node belongs to (Cashflow theme). */
 export interface NodeGroup {
   name: string;
   color: string;
 }
 
 /**
- * Default color for a node. With groups ("Money flow" scheme): its group's
+ * Default color for a node. With groups (Cashflow theme): its group's
  * color, or neutral gray if it has none. Without: palette slot by order of
  * appearance; past the eighth, neutral.
  */
@@ -212,14 +212,14 @@ function defaultNodeColor(
 
 /**
  * A user color choice: "slot:N" (palette slot N, follows light/dark theme),
- * "role:<category>" (a Money flow color), "neutral", or a literal "#rrggbb"
+ * "role:<category>" (a Cashflow color), "neutral", or a literal "#rrggbb"
  * from the custom picker.
  */
 export type ColorChoice = string;
 
 function resolveColor(choice: ColorChoice, theme: ChartTheme): string {
   if (choice === "neutral") return theme.neutral;
-  // "role:spending" etc. — a Money flow category color (follows the theme).
+  // "role:spending" etc. — a Cashflow category color (follows the theme).
   // Nothing picks these any more (boxes join a group instead), but charts
   // saved by older versions can still have them, so they keep working.
   const role = /^role:(\w+)$/.exec(choice);

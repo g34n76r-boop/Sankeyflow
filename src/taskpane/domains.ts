@@ -1,7 +1,7 @@
 /*
  * Industry colour themes: each brings its own set of colour groups (name,
  * colour tone, keywords) for a kind of flow — supply chains, manufacturing,
- * HR and sales. "Money flow" is the built-in set in finance.ts.
+ * HR and sales. Cashflow is the built-in set in finance.ts.
  *
  * A box goes in the first group whose keywords match its name; otherwise its
  * position decides: starting boxes → the "start" group, boxes in between →
@@ -12,7 +12,7 @@ export type IndustryId = "finance" | "supply" | "manufacturing" | "hr" | "sales"
 
 /**
  * Values of the Style "Colour theme" dropdown: THEME_PREFIX + a colour theme
- * ("default" is Cashflow, the others are the Generic ones), or
+ * ("cashflow", or one of the Generic ones), or
  * INDUSTRY_PREFIX + an industry id.
  */
 export const THEME_PREFIX = "theme:";

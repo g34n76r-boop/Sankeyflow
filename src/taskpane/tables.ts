@@ -31,8 +31,8 @@ export interface TableData {
 }
 
 export interface TablePickerOptions {
-  /** The pane's wrapper for user actions: disables buttons and shows errors. */
-  run: (action: () => Promise<void>) => Promise<void>;
+  /** Runs a user action the pane's way: buttons disabled meanwhile, errors shown. */
+  runAction: (action: () => Promise<void>) => Promise<void>;
   /** Called with fresh rows when a table is picked and after each change to it. */
   onTableData: (data: TableData, reason: "picked" | "changed") => void;
   /** Shows an error from a background (event-driven) update. */
@@ -181,9 +181,9 @@ export const listedTables = () => knownTables;
 export async function setupTablePicker(opts: TablePickerOptions) {
   options = opts;
   const select = $<HTMLSelectElement>("table-select");
-  select.onchange = () => opts.run(() => pickTable(select.value));
-  $("tables-refresh").onclick = () => opts.run(async () => void (await refreshTableList()));
-  await opts.run(async () => void (await refreshTableList()));
+  select.onchange = () => opts.runAction(() => pickTable(select.value));
+  $("tables-refresh").onclick = () => opts.runAction(async () => void (await refreshTableList()));
+  await opts.runAction(async () => void (await refreshTableList()));
 }
 
 /**

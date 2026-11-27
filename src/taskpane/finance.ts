@@ -1,5 +1,5 @@
 /*
- * "Money flow" color scheme: classifies each box as income, spending, savings,
+ * Cashflow theme: classifies each box as income, spending, savings,
  * remainder or account (neutral) — the way household budgets and financial
  * statements are usually colored.
  */

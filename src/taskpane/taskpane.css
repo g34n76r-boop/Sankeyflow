@@ -163,7 +163,7 @@ h2 {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    /* On the tabs' row, on the right; excel.ts sets min-width to the summary
+    /* On the tabs' row, on the right; taskpane.ts sets min-width to the summary
        table's width so the two line up. */
     grid-area: alert;
     justify-self: end;
@@ -353,7 +353,7 @@ h2 {
     margin-bottom: 14px;
     /* From 800px down to 500px the whole top area (text, buttons, summary)
        shrinks gradually, to 75%, so its two columns stay side by side instead
-       of stacking. excel.ts sets --top-scale from the pane's width. */
+       of stacking. taskpane.ts sets --top-scale from the pane's width. */
     zoom: var(--top-scale, 1);
 }
 
@@ -1052,7 +1052,7 @@ th.num {
 }
 
 /* A small gap on the right and bottom, so the chart's dotted edges stand clear
-   of the preview's border (CHART_EDGE_GAP in excel.ts). */
+   of the preview's border (CHART_EDGE_GAP in taskpane.ts). */
 #chart {
     padding: 0 var(--chart-edge-gap) var(--chart-edge-gap) 0;
     --chart-edge-gap: 10px;
@@ -1756,15 +1756,15 @@ input[type="color"] {
     margin-bottom: 8px;
 }
 
-.colour-panel {
+.color-panel {
     margin-bottom: 12px;
 }
 
-.colour-panel > .field {
+.color-panel > .field {
     margin: 8px 0 6px;
 }
 
-.colour-panel .scheme-hint {
+.color-panel .scheme-hint {
     margin: 0;
 }
 

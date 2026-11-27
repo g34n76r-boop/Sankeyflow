@@ -10,8 +10,8 @@
 
 /* global document, window, HTMLElement, HTMLInputElement, SVGSVGElement, Node, KeyboardEvent, PointerEvent, MouseEvent */
 
-import { CHART_SIZE_LIMITS as LIMITS, parseChartSize } from "./resize";
-import type { ChartSize } from "./sizeMenu";
+import { CHART_SIZE_LIMITS as LIMITS, parseChartSize } from "./chartSize";
+import type { ChartSize } from "./chartSize";
 
 export type Axis = "width" | "height";
 

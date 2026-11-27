@@ -1,4 +1,4 @@
-/* global document, window, Excel, Office, XMLSerializer, Image, CSS, Event, setTimeout, clearTimeout, ResizeObserver */
+/* global document, window, Excel, Office, CSS, Event, setTimeout, clearTimeout, ResizeObserver */
 /* global HTMLElement, HTMLSelectElement, HTMLInputElement, HTMLButtonElement, HTMLDetailsElement, HTMLTableRowElement, SVGSVGElement */
 
 import {
@@ -21,7 +21,6 @@ import {
 import type {
   ChartHandle,
   ChartTheme,
-  ChartTitle,
   ColorChoice,
   LinkColorMode,
   NodeGroup,
@@ -29,7 +28,6 @@ import type {
 } from "./chart";
 import {
   DEFAULT_LABELS,
-  FONT_CHOICES,
   LABEL_GAP,
   LINE_HEIGHT,
   NAME_WEIGHT,
@@ -49,6 +47,7 @@ import {
   setupTablePicker,
 } from "./tables";
 import {
+  CASHFLOW,
   diagramById,
   findBySource,
   forgetDiagram,
@@ -74,7 +73,7 @@ import type {
 import type { TableData } from "./tables";
 import { computeRoles } from "./finance";
 import { INDUSTRY_PREFIX, INDUSTRY_PRESETS, THEME_PREFIX, industryPreset } from "./domains";
-import type { IndustryId, Tone } from "./domains";
+import type { IndustryId } from "./domains";
 import { SAMPLES, sampleById } from "./samples";
 import type { NodeRole } from "./finance";
 import { closePopout, openPopout, popoutOpen, refreshPopout } from "./popout";
@@ -85,16 +84,45 @@ import { attachPreviewResizer } from "./resize";
 import { attachSizeMenu } from "./sizeMenu";
 import { setupToolbarIconSelects } from "./iconSelect";
 import type { SizeMenu } from "./sizeMenu";
+import type { ChartSize } from "./chartSize";
 import { attachChartEdges } from "./chartEdges";
 import type { ChartEdges } from "./chartEdges";
-import { $, escapeHtml } from "./dom";
+import { $, addFontOptions, escapeHtml, setControl } from "./dom";
 import { parseNumber } from "./numbers";
 import { errorCode, friendlyError } from "./errors";
 import { showTooltip } from "./tooltip";
+import { isDarkTheme, setupThemeToggle } from "./paneTheme";
+import { svgToPngBase64 } from "./picture";
+import { clone, withDefaults } from "./savedSettings";
+import {
+  getChartTitle,
+  setChartTitle,
+  setupTitleControls,
+  syncTitleControls,
+} from "./titleControls";
+import {
+  GROUP_PREFIX,
+  GROUP_THEMES,
+  applyThemeColors,
+  autoGroup,
+  builtinGroups,
+  defaultGroupName,
+  defaultGroups,
+  groupColor,
+  groupMap,
+  industryOf,
+  manualGroupOf,
+  startingGroups,
+} from "./groups";
+import type { GroupMap } from "./groups";
 import type { ChartModel, PopoutAction, PopoutContent, ToolbarOptions } from "./popoutModel";
 
-/** Narrowest the chart is drawn in the pane; narrower panes scroll sideways. */
-const MIN_CHART_WIDTH = 640;
+/**
+ * Narrowest the chart is laid out for when it fits the pane or window (no size
+ * chosen); a narrower pane shows it scaled down. Not the same as the smallest
+ * size you can choose (CHART_SIZE_LIMITS in chartSize.ts).
+ */
+const MIN_LAYOUT_WIDTH = 640;
 /** Width of the inserted picture (drawn at 2x, so 1920px like the reference image). */
 const EXPORT_WIDTH = 960;
 
@@ -107,7 +135,8 @@ interface LoadedData {
   source: DataSource;
 }
 
-let current: LoadedData | null = null;
+/** The data the chart is drawn from (null: nothing loaded). */
+let loaded: LoadedData | null = null;
 
 // Customizations, keyed by node name so they survive Refresh, resizing and export.
 const nodeColors = new Map<string, ColorChoice>();
@@ -138,122 +167,20 @@ function chartMargin(side: number, base: number, withTitle = true): Margin {
   if (vertical) v = Math.max(v, labelLines() * lineH + LABEL_GAP + 4);
   // The title (if any) sits above everything else.
   return {
-    top: v + (withTitle ? titleHeight(chartTitle) : 0),
+    top: v + (withTitle ? titleHeight(getChartTitle()) : 0),
     right: side,
     bottom: v,
     left: side,
   };
 }
 
-/* ---------- Title ---------- */
-
-const DEFAULT_TITLE: ChartTitle = {
-  text: "",
-  subtitle: "",
-  size: 20,
-  subtitleSize: null, // automatic
-  bold: true,
-  italic: false,
-  fontFamily: null, // same as the labels
-  align: "left",
-  color: null,
-};
-
-/** Value of the "Same as labels" option in the title font dropdown. */
-const SAME_AS_LABELS = "";
-let chartTitle: ChartTitle = { ...DEFAULT_TITLE };
-
-function setupTitleControls() {
-  const text = $<HTMLInputElement>("title-text");
-  const sub = $<HTMLInputElement>("subtitle-text");
-  const size = $<HTMLInputElement>("title-size");
-  const update = (patch: Partial<ChartTitle>) => {
-    chartTitle = { ...chartTitle, ...patch };
-    syncTitleControls();
-    scheduleDraw(); // typing and the colour picker fire on every change
-  };
-  text.addEventListener("input", () => update({ text: text.value }));
-  sub.addEventListener("input", () => update({ subtitle: sub.value }));
-  size.addEventListener("change", () => {
-    const v = Math.round(Number(size.value));
-    update({ size: isFinite(v) ? Math.min(40, Math.max(12, v)) : DEFAULT_TITLE.size });
-  });
-
-  // Font: "Same as labels" (follows the Labels font) or a font of its own.
-  const font = $<HTMLSelectElement>("title-font");
-  font.appendChild(
-    Object.assign(document.createElement("option"), {
-      value: SAME_AS_LABELS,
-      textContent: "Same as labels",
-    })
-  );
-  addFontOptions(font);
-  font.onchange = () => update({ fontFamily: font.value === SAME_AS_LABELS ? null : font.value });
-
-  const subSize = $<HTMLInputElement>("subtitle-size");
-  subSize.addEventListener("change", () => {
-    const raw = subSize.value.trim();
-    const v = Math.round(Number(raw));
-    // Blank (or invalid) = automatic.
-    update({ subtitleSize: raw === "" || !isFinite(v) ? null : Math.min(32, Math.max(9, v)) });
-  });
-
-  $<HTMLInputElement>("title-bold").onchange = (e) =>
-    update({ bold: (e.target as HTMLInputElement).checked });
-  $<HTMLInputElement>("title-italic").onchange = (e) =>
-    update({ italic: (e.target as HTMLInputElement).checked });
-  $<HTMLSelectElement>("title-align").onchange = (e) =>
-    update({ align: (e.target as HTMLSelectElement).value as ChartTitle["align"] });
-  $<HTMLInputElement>("title-color").addEventListener("input", (e) =>
-    update({ color: (e.target as HTMLInputElement).value })
-  );
-  $("title-color-auto").onclick = () => update({ color: null });
-  $("remove-title-btn").onclick = () => update({ ...DEFAULT_TITLE });
-  syncTitleControls();
-}
-
-/** One option per font choice, each shown in its own font. */
-function addFontOptions(select: HTMLSelectElement) {
-  for (const f of FONT_CHOICES) {
-    const opt = Object.assign(document.createElement("option"), {
-      value: f.stack,
-      textContent: f.name,
-    });
-    opt.style.fontFamily = f.stack;
-    select.appendChild(opt);
-  }
-}
-
-/** Sets a control's value, unless it's the one being typed in (or already shows it). */
-function setControl(id: string, value: string) {
-  const el = $<HTMLInputElement | HTMLSelectElement>(id);
-  if (document.activeElement !== el && el.value !== value) el.value = value;
-}
-
-/** Writes the title settings into the controls (skipping the one being typed in). */
-function syncTitleControls() {
-  const t = chartTitle;
-  const set = setControl;
-  set("title-text", t.text);
-  set("subtitle-text", t.subtitle);
-  set("title-size", String(t.size));
-  set("title-font", t.fontFamily ?? SAME_AS_LABELS);
-  set("subtitle-size", t.subtitleSize === null ? "" : String(t.subtitleSize));
-  $<HTMLInputElement>("title-bold").checked = t.bold;
-  $<HTMLInputElement>("title-italic").checked = t.italic;
-  set("title-align", t.align);
-  set("title-color", toHex6(t.color ?? chartTheme(false).textPrimary));
-  $<HTMLButtonElement>("title-color-auto").disabled = t.color === null;
-  const any = t.text.trim() !== "" || t.subtitle.trim() !== "";
-  $<HTMLButtonElement>("remove-title-btn").disabled =
-    JSON.stringify(t) === JSON.stringify(DEFAULT_TITLE);
-  // The section heading shows the title, so it's visible while collapsed.
-  $("title-note").textContent = any ? t.text.trim() || t.subtitle.trim() : "None";
-}
-
 Office.onReady((info) => {
   if (info.host !== Office.HostType.Excel) return;
-  setupThemeToggle();
+  setupThemeToggle(() => {
+    // The Labels colour swatch and the chart preview follow the pane's theme.
+    syncLabelControls();
+    draw();
+  });
   setupPopout();
   setupTopScale();
   setupZoom();
@@ -261,15 +188,15 @@ Office.onReady((info) => {
   $("sideload-msg").hidden = true;
   $("app-body").hidden = false;
 
-  $("load-btn").onclick = () => run(() => loadFromSelection());
+  $("load-btn").onclick = () => runAction(() => loadFromSelection());
   setupClearConfirm();
   $("refresh-btn").onclick = () =>
-    run(async () => {
-      if (current?.source.kind === "range") await loadFromAddress(current.source.address);
-      else if (current?.source.kind === "table") await reloadSelectedTable();
+    runAction(async () => {
+      if (loaded?.source.kind === "range") await loadFromAddress(loaded.source.address);
+      else if (loaded?.source.kind === "table") await reloadSelectedTable();
     });
-  $("sample-btn").onclick = () => run(insertSampleData);
-  $("insert-btn").onclick = () => run(insertChartIntoSheet);
+  $("sample-btn").onclick = () => runAction(insertSampleData);
+  $("insert-btn").onclick = () => runAction(insertChartIntoSheet);
   $<HTMLSelectElement>("link-color").onchange = () => draw();
   $<HTMLSelectElement>("end-align").onchange = () => draw();
   $<HTMLSelectElement>("node-order").onchange = () => draw();
@@ -331,25 +258,28 @@ Office.onReady((info) => {
   setupTabs();
   setupImbalanceMessage();
   setupSummaryToggle();
-  setupTitleControls();
+  setupTitleControls({
+    onChange: scheduleDraw, // typing and the colour picker fire on every change
+    autoColor: () => chartTheme(false).textPrimary,
+  });
   setupSampleControls();
   setupGroupControls();
   setupSaveControls();
   // Every setting as it is before anything is loaded: what Clear goes back to.
   defaultSettings = captureSettings();
   setupTablePicker({
-    run,
+    runAction,
     onTableData: showTableData,
     onError: (message) => setStatus(message, "error"),
     onNotice: (message) => setStatus(message),
     onWatchEnded: (id) => {
       // If the diagram still shows that table, say it has stopped updating.
       // (When switching tables, the new table's data replaces this right away.)
-      if (current?.source.kind === "table" && current.source.id === id) {
-        $("source-address").textContent = `${sourceText(current.source)} · not updating`;
+      if (loaded?.source.kind === "table" && loaded.source.id === id) {
+        $("source-address").textContent = `${sourceText(loaded.source)} · not updating`;
       }
     },
-  }).then(() => run(restoreOnStartup));
+  }).then(() => runAction(restoreOnStartup));
 
   // Redraw when the chart's box changes width — from resizing the pane, but also
   // when the pane's scrollbar appears or disappears as content changes.
@@ -599,80 +529,20 @@ function setupBackgroundControls() {
   });
 }
 
-/* ---------- Light / dark toggle ---------- */
-
-const THEME_KEY = "sankeyflow.paneTheme";
-
-/** Your light/dark choice; null until you use the toggle (then the pane is light). */
-let themeChoice: "light" | "dark" | null = (() => {
-  try {
-    const v = window.localStorage.getItem(THEME_KEY);
-    return v === "light" || v === "dark" ? v : null;
-  } catch {
-    return null; // storage can be unavailable; default to light
-  }
-})();
-
-function setupThemeToggle() {
-  applyPaneTheme();
-  $("theme-toggle").onclick = () => {
-    themeChoice = isDarkTheme() ? "light" : "dark";
-    try {
-      window.localStorage.setItem(THEME_KEY, themeChoice);
-    } catch {
-      // Not remembered next time, but still switches now.
-    }
-    applyPaneTheme();
-    // The Labels color swatch and the chart preview follow the theme.
-    syncLabelControls();
-    draw();
-  };
-}
-
-/** Sun: a solid disc with eight short, separate rays. */
-const SUN_ICON =
-  `<svg class="sun-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">` +
-  `<circle cx="12" cy="12" r="4.5" fill="currentColor"/>` +
-  `<g stroke="currentColor" stroke-width="2" stroke-linecap="round">` +
-  `<line x1="12" y1="1.5" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22.5"/>` +
-  `<line x1="1.5" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22.5" y2="12"/>` +
-  `<line x1="4.6" y1="4.6" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.4" y2="19.4"/>` +
-  `<line x1="4.6" y1="19.4" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.4" y2="4.6"/>` +
-  `</g></svg>`;
-
-/** Sets the pane's theme and the toggle's icon and label. */
-function applyPaneTheme() {
-  const dark = isDarkTheme();
-  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-  const btn = $("theme-toggle");
-  // The icon shows the current mode: moon in dark mode, sun in light mode.
-  if (dark) {
-    btn.textContent = "☾";
-  } else {
-    // Drawn rather than the ☀ glyph, which some fonts render as a starburst.
-    btn.innerHTML = SUN_ICON;
-  }
-  const label = dark ? "Switch to light mode" : "Switch to dark mode";
-  btn.title = label;
-  btn.setAttribute("aria-label", label);
-  btn.setAttribute("aria-pressed", String(dark));
-}
-
-/** Dark mode: your toggle choice if you've made one, otherwise light. */
-function isDarkTheme(): boolean {
-  return themeChoice === "dark";
-}
-
 function setStatus(message: string | null, kind: "info" | "error" = "info") {
   const s = $("status");
   s.hidden = !message;
   $("status-text").textContent = message ?? "";
   s.classList.toggle("error", kind === "error");
-  // The × hides the message. (Not a .btn, so run() leaves it enabled.)
+  // The × hides the message. (Not a .btn, so runAction() leaves it enabled.)
   $("status-dismiss").onclick = () => setStatus(null);
 }
 
-async function run(action: () => Promise<void>) {
+/**
+ * Runs something the user asked for (a button): the main buttons are disabled
+ * meanwhile, and an error is shown in the status bar instead of thrown.
+ */
+async function runAction(action: () => Promise<void>) {
   // Only the main action buttons; the customize controls manage their own state.
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button.btn"));
   const wasDisabled = buttons.map((b) => b.disabled);
@@ -691,7 +561,7 @@ async function run(action: () => Promise<void>) {
 /** Refresh, Insert and Clear work on the loaded chart: enabled only when there is one. */
 function updateActionButtons() {
   for (const id of ["refresh-btn", "insert-btn", "clear-btn"]) {
-    $<HTMLButtonElement>(id).disabled = !current;
+    $<HTMLButtonElement>(id).disabled = !loaded;
   }
 }
 
@@ -871,7 +741,7 @@ function showFlows(
     }
   }
 
-  current = { flows, headers, source };
+  loaded = { flows, headers, source };
   setLoadedMode(true);
   setStatus(notes.length ? notes.join(" ") : null);
   updateActionButtons();
@@ -896,7 +766,7 @@ function showFlows(
  */
 async function clearData(opts: { persist?: boolean } = {}) {
   await releaseTable();
-  current = null;
+  loaded = null;
   selectedNode = null;
   chartHandle = null;
   imbalanceHover = false;
@@ -955,8 +825,6 @@ let savedSnapshot: string | null = null;
 /** Pictures inserted before the diagram was first saved; saved with it. */
 let pendingPictures: SavedPicture[] = [];
 
-const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
-
 /** Every setting of the diagram in the pane, as saved with it. */
 function captureSettings(): DiagramSettings {
   return clone({
@@ -964,7 +832,7 @@ function captureSettings(): DiagramSettings {
     nodePositions: Array.from(nodePositions),
     labelOverrides: Array.from(labelOverrides),
     labelSettings,
-    chartTitle,
+    chartTitle: getChartTitle(),
     groupSet,
     groups,
     genericTheme,
@@ -976,69 +844,6 @@ function captureSettings(): DiagramSettings {
     chartSize,
     summaryCollapsed,
   });
-}
-
-/** A plain object, or {} for anything else (null, an array, a string…). */
-const asObject = (v: unknown): Record<string, unknown> =>
-  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-
-/** `v` if it's a finite number or null, otherwise `fallback`. */
-const sizeOr = (v: unknown, fallback: number | null) =>
-  v === null || (typeof v === "number" && isFinite(v)) ? v : fallback;
-
-const isGroupSet = (v: unknown): v is GroupSet =>
-  v === "money" || v === "generic" || (typeof v === "string" && !!industryPreset(v));
-
-/**
- * Saved settings with every gap filled from the defaults, at every level, and
- * anything of the wrong kind (from an older version, or edited by hand)
- * replaced by its default rather than breaking the pane.
- */
-function withDefaults(saved: Partial<DiagramSettings>): DiagramSettings {
-  // Copied as a whole: defaults filled in for missing settings must not be
-  // shared with defaultSettings, or editing them (e.g. a group's colour, which
-  // is changed in place) would change what Clear goes back to.
-  const d = clone(defaultSettings!);
-  const s = asObject(clone(saved ?? {}));
-  const list = <T>(v: unknown, fallback: T[]): T[] => (Array.isArray(v) ? (v as T[]) : fallback);
-  // [name, value] lists: keep only well-formed pairs.
-  const pairs = <V>(v: unknown, fallback: [string, V][]): [string, V][] =>
-    list<unknown>(v, fallback).filter(
-      (e): e is [string, V] => Array.isArray(e) && e.length === 2 && typeof e[0] === "string"
-    );
-  const background = asObject(s.background);
-  const chartSizeSaved = asObject(s.chartSize);
-  const color = background.color;
-  return {
-    nodeColors: pairs(s.nodeColors, d.nodeColors),
-    nodePositions: pairs(s.nodePositions, d.nodePositions),
-    labelOverrides: pairs(s.labelOverrides, d.labelOverrides),
-    labelSettings: { ...d.labelSettings, ...asObject(s.labelSettings) } as LabelSettings,
-    chartTitle: { ...d.chartTitle, ...asObject(s.chartTitle) } as ChartTitle,
-    groupSet: isGroupSet(s.groupSet) ? s.groupSet : d.groupSet,
-    groups: list<ColorGroup>(s.groups, d.groups).filter(
-      (g) => !!g && typeof g.id === "string" && typeof g.name === "string"
-    ),
-    genericTheme: typeof s.genericTheme === "string" ? s.genericTheme : d.genericTheme,
-    addedGroupCount:
-      typeof s.addedGroupCount === "number" && isFinite(s.addedGroupCount)
-        ? s.addedGroupCount
-        : d.addedGroupCount,
-    background: {
-      mode: (background.mode as BackgroundMode) ?? d.background.mode,
-      color:
-        typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color) ? color : d.background.color,
-    },
-    linkColor: (s.linkColor as LinkColorMode) ?? d.linkColor,
-    endAlign: (s.endAlign as DiagramSettings["endAlign"]) ?? d.endAlign,
-    nodeOrder: (s.nodeOrder as DiagramSettings["nodeOrder"]) ?? d.nodeOrder,
-    chartSize: {
-      width: sizeOr(chartSizeSaved.width, d.chartSize.width),
-      height: sizeOr(chartSizeSaved.height, d.chartSize.height),
-    },
-    summaryCollapsed:
-      typeof s.summaryCollapsed === "boolean" ? s.summaryCollapsed : d.summaryCollapsed,
-  };
 }
 
 /** Sets a dropdown, falling back to `fallback` if `value` isn't one of its options. */
@@ -1053,7 +858,7 @@ function setSelect(id: string, value: string, fallback: string) {
  * unusable (e.g. saved by an older version) falls back to the default.
  */
 function applySettings(saved: Partial<DiagramSettings>) {
-  const s = withDefaults(saved);
+  const s = withDefaults(saved, defaultSettings!);
   const d = defaultSettings!;
   const refill = <V>(map: Map<string, V>, entries: [string, V][]) => {
     map.clear();
@@ -1063,7 +868,7 @@ function applySettings(saved: Partial<DiagramSettings>) {
   refill(nodePositions, s.nodePositions);
   refill(labelOverrides, s.labelOverrides);
   labelSettings = s.labelSettings;
-  chartTitle = s.chartTitle;
+  setChartTitle(s.chartTitle);
   groupSet = s.groupSet;
   groups = s.groups;
   genericTheme = s.genericTheme;
@@ -1085,7 +890,7 @@ function applySettings(saved: Partial<DiagramSettings>) {
   syncSampleSelect();
   syncTitleControls();
   syncLabelControls();
-  syncColourSelect();
+  syncColorThemeSelect();
   syncSizeControls();
 }
 
@@ -1098,7 +903,7 @@ function markOpen(id: string) {
 
 /** The loaded chart has changes that aren't saved (or was never saved). */
 function hasUnsavedChanges(): boolean {
-  if (!current) return false;
+  if (!loaded) return false;
   return !diagramById(openDiagramId) || JSON.stringify(captureSettings()) !== savedSnapshot;
 }
 
@@ -1106,7 +911,7 @@ function hasUnsavedChanges(): boolean {
 function updateSaveState() {
   const btn = $<HTMLButtonElement>("save-btn");
   const dirty = hasUnsavedChanges();
-  const saved = !!current && !dirty;
+  const saved = !!loaded && !dirty;
   btn.disabled = !dirty;
   // Only the label changes; the floppy-disk icon beside it stays.
   $("save-label").textContent = saved ? "Saved ✓" : "Save";
@@ -1118,7 +923,7 @@ function updateSaveState() {
   // Nothing loaded but the workbook has saved charts: the Memory tab turns
   // green to point you to them.
   const memoryTab = $("tab-memory");
-  const count = current ? 0 : listDiagrams().length;
+  const count = loaded ? 0 : listDiagrams().length;
   memoryTab.classList.toggle("has-saved", count > 0);
   memoryTab.title = count
     ? `${count} saved chart${count === 1 ? "" : "s"} in this workbook. Open one from here.`
@@ -1126,7 +931,7 @@ function updateSaveState() {
 
   const info = $("loaded-info");
   info.textContent = "";
-  if (!current) return;
+  if (!loaded) return;
   const d = diagramById(openDiagramId);
   const name = document.createElement("b");
   name.textContent = d ? d.name : "Unsaved chart";
@@ -1170,17 +975,18 @@ function defaultDiagramName(source: DataSource): string {
  * save box), or the default name.
  */
 async function saveCurrent(name?: string) {
-  if (!current) return;
+  if (!loaded) return;
   const existing = diagramById(openDiagramId);
   const d: SavedDiagram = {
     id: existing?.id ?? newDiagramId(),
-    name: existing?.name ?? (name?.trim() || defaultDiagramName(current.source)),
-    source: clone(current.source),
+    name: existing?.name ?? (name?.trim() || defaultDiagramName(loaded.source)),
+    source: clone(loaded.source),
     settings: captureSettings(),
     pictures: [...(existing?.pictures ?? []), ...pendingPictures],
     savedAt: Date.now(),
   };
-  await saveDiagram(d);
+  // Saved as the open diagram too, so it reopens with the workbook.
+  await saveDiagram(d, { open: true });
   openDiagramId = d.id;
   savedSnapshot = JSON.stringify(d.settings);
   pendingPictures = [];
@@ -1225,7 +1031,7 @@ async function openDiagram(d: SavedDiagram) {
   }
   // The table may have no usable rows yet (the status says so); it opens when it
   // does. Once it has opened, no message: the chart itself shows it worked.
-  if (current) setStatus(null);
+  if (loaded) setStatus(null);
   updateSaveState();
   renderMemoryTab();
 }
@@ -1271,9 +1077,9 @@ function renderMemoryTab() {
     tables: listedTables(),
     themeName: (d) => `Style: ${themeLabel(d.settings)}`,
     onOpen: requestOpen,
-    onForget: (d) => run(() => forget(d)),
+    onForget: (d) => runAction(() => forget(d)),
     onRename: (d, name) =>
-      run(async () => {
+      runAction(async () => {
         await renameDiagram(d.id, name);
         updateSaveState();
         renderMemoryTab();
@@ -1283,7 +1089,7 @@ function renderMemoryTab() {
 
 /** A saved diagram's colour theme, as named in the Style dropdown. */
 function themeLabel(s: DiagramSettings): string {
-  if (s.groupSet === "money") return "Cashflow";
+  if (s.groupSet === CASHFLOW) return "Cashflow";
   if (s.groupSet === "generic") {
     return GROUP_THEMES.find((t) => t.id === s.genericTheme)?.name ?? "Generic";
   }
@@ -1295,7 +1101,7 @@ function themeLabel(s: DiagramSettings): string {
  * there's nothing unsaved to lose.
  */
 function requestOpen(d: SavedDiagram) {
-  run(async () => {
+  runAction(async () => {
     await openDiagram(d);
     showTab("chart");
   });
@@ -1329,14 +1135,14 @@ function setupSaveControls() {
   const save = (name?: string) => {
     const then = after;
     show(false);
-    run(async () => {
+    runAction(async () => {
       await saveCurrent(name);
       if (then) await then();
     });
   };
 
   requestSave = (then) => {
-    if (!current) return;
+    if (!loaded) return;
     if (diagramById(openDiagramId)) {
       // Saved before: save under its name straight away.
       after = then;
@@ -1344,7 +1150,7 @@ function setupSaveControls() {
       return;
     }
     after = then;
-    input.value = defaultDiagramName(current.source);
+    input.value = defaultDiagramName(loaded.source);
     ok.textContent = then ? "Save and close" : "Save";
     ok.disabled = false;
     show(true);
@@ -1436,14 +1242,18 @@ function chartHeight(flows: Flow[], width: number): number {
 function buildLayout(
   width: number,
   base: Margin,
-  // The example preview passes its own flows, without your moved boxes or label edits.
-  flows: Flow[] = current!.flows,
-  personal = true,
-  // A chosen overall height (the Size setting); otherwise sized to the busiest column.
-  totalHeight: number | null = null
+  opts: {
+    /** The example preview: the example flows, without your moved boxes or label edits. */
+    example?: boolean;
+    /** A chosen overall height (the size menu); otherwise sized to the busiest column. */
+    height?: number | null;
+  } = {}
 ): { layout: SankeyLayout; margin: Margin } {
-  const positions = personal ? nodePositions : new Map<string, NodePosition>();
-  const overrides = personal ? labelOverrides : new Map<string, NodeLabelOverride>();
+  const example = opts.example ?? false;
+  const totalHeight = opts.height ?? null;
+  const flows = example ? EXAMPLE_FLOWS : loaded!.flows;
+  const positions = example ? new Map<string, NodePosition>() : nodePositions;
+  const overrides = example ? new Map<string, NodeLabelOverride>() : labelOverrides;
   let innerW = Math.max(120, width - base.left - base.right);
   const height = totalHeight
     ? Math.max(80, totalHeight - base.top - base.bottom)
@@ -1486,25 +1296,26 @@ const EXAMPLE_FLOWS: Flow[] = [
 /**
  * How a laid-out chart looks: colours, groups, labels, title and background,
  * the same everywhere it's drawn (the pane, the inserted picture, the pop-out
- * window). Without `personal` (the example preview) it leaves out your own
- * box colours, label edits and title.
+ * window). For the example preview (`example`) it leaves out your own box
+ * colours, label edits and title.
  */
 function chartLook(
   layout: SankeyLayout,
   theme: ChartTheme,
   margin: Margin,
-  personal = true
+  opts: { example?: boolean } = {}
 ): RenderOptions & { groups: GroupMap } {
+  const example = opts.example ?? false;
   return {
     theme,
     linkColor: $<HTMLSelectElement>("link-color").value as LinkColorMode,
     labels: labelSettings,
-    labelOverrides: personal ? labelOverrides : new Map<string, NodeLabelOverride>(),
-    colors: personal ? chartColors() : new Map<string, ColorChoice>(),
+    labelOverrides: example ? new Map<string, NodeLabelOverride>() : labelOverrides,
+    colors: example ? new Map<string, ColorChoice>() : chartColors(),
     groups: groupsFor(layout.nodes, theme),
     margin,
     transparent: backgroundMode() === "transparent",
-    title: personal ? chartTitle : undefined,
+    title: example ? undefined : getChartTitle(),
   };
 }
 
@@ -1517,8 +1328,8 @@ function renderExamplePreview() {
     const theme = chartTheme(false);
     const width = Math.max(box.clientWidth, 300);
     // The title isn't part of the example.
-    const { layout, margin } = buildLayout(width, chartMargin(4, 10, false), EXAMPLE_FLOWS, false);
-    renderSankey(svg, layout, chartLook(layout, theme, margin, false));
+    const { layout, margin } = buildLayout(width, chartMargin(4, 10, false), { example: true });
+    renderSankey(svg, layout, chartLook(layout, theme, margin, { example: true }));
     box.classList.toggle("transparent-bg", backgroundMode() === "transparent");
   } catch {
     // A preview isn't worth an error message.
@@ -1550,7 +1361,7 @@ function draw(opts: { focusSelected?: boolean } = {}) {
   // shows whether there's something to save.
   refreshPopout();
   updateSaveState();
-  if (!current) {
+  if (!loaded) {
     // Nothing loaded: keep the example preview in the current style instead.
     renderExamplePreview();
     return;
@@ -1564,18 +1375,14 @@ function draw(opts: { focusSelected?: boolean } = {}) {
   container.classList.toggle("transparent-bg", transparent);
   tooltip.hidden = true;
   try {
-    // Labels sit beside the boxes, which needs room: below MIN_CHART_WIDTH the
+    // Labels sit beside the boxes, which needs room: below MIN_LAYOUT_WIDTH the
     // chart keeps that width and is shown scaled down instead of squashing.
     // A chosen size (the size menu) wins over fitting the pane.
     const width =
-      chartSize.width ?? Math.max(container.clientWidth - CHART_EDGE_GAP, MIN_CHART_WIDTH);
-    const { layout, margin } = buildLayout(
-      width,
-      chartMargin(4, 10),
-      undefined,
-      true,
-      chartSize.height
-    );
+      chartSize.width ?? Math.max(container.clientWidth - CHART_EDGE_GAP, MIN_LAYOUT_WIDTH);
+    const { layout, margin } = buildLayout(width, chartMargin(4, 10), {
+      height: chartSize.height,
+    });
     const look = chartLook(layout, theme, margin);
     const gm = look.groups;
     if (selectedNode && !layout.nodes.some((n) => n.name === selectedNode)) selectedNode = null;
@@ -1594,14 +1401,14 @@ function draw(opts: { focusSelected?: boolean } = {}) {
         onNodeMoved: (n, l) => {
           nodePositions.set(n.name, getNodePosition(n, l));
           updateResetButtons();
-          markMoved(n.name);
+          refreshNodeTag(n.name);
           refreshPopout();
           updateSaveState();
         },
         onLabelMoved: (n, dx, dy) => {
           setOverride(n.name, { ...labelOverrides.get(n.name), dx, dy });
           updateResetButtons();
-          markMoved(n.name);
+          refreshNodeTag(n.name);
           refreshPopout();
           updateSaveState();
         },
@@ -1696,7 +1503,7 @@ function updateImbalanceMessage(accounts: SankeyNode[], totalDiff: number) {
   if (totalDiff !== 0) off.push(`total:${totalDiff}`);
   currentImbalance = off.join("|");
 
-  if (current && currentImbalance !== tableImbalance) fillTable();
+  if (loaded && currentImbalance !== tableImbalance) fillTable();
 
   const anyGap = currentImbalance !== "";
   // The ⓘ stays while anything is unaccounted for; the amber alert until dismissed.
@@ -1742,7 +1549,7 @@ function showImbalanceMessage(icon: boolean, alert = icon) {
  * The chart's size in px when you've chosen one (the size menu); null = automatic (fit the pane or window; height from the data).
  * Used for the pane, the pop-out window and the inserted picture alike.
  */
-let chartSize: { width: number | null; height: number | null } = { width: null, height: null };
+let chartSize: ChartSize = { width: null, height: null };
 /** Keeps the preview's height bar on its bottom edge after a redraw or zoom. */
 let placeResizeHandle: (() => void) | null = null;
 
@@ -1881,7 +1688,7 @@ function setupClearConfirm() {
   };
   ok.onclick = () => {
     show(false);
-    run(() => clearData());
+    runAction(() => clearData());
   };
   box.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -2032,8 +1839,11 @@ function updateResetButtons() {
   }
 }
 
-/** Shows the "moved" tag on a list row without rebuilding the chart mid-interaction. */
-function markMoved(name: string) {
+/**
+ * Rewrites a box's tags ("moved", "custom label", its group…) in the list,
+ * without rebuilding the chart mid-interaction.
+ */
+function refreshNodeTag(name: string) {
   const row = document.querySelector<HTMLElement>(
     `#node-list [data-node="${CSS.escape(name)}"] .tag`
   );
@@ -2045,93 +1855,18 @@ function tagText(name: string) {
   const o = labelOverrides.get(name);
   const assigned = manualGroup(name);
   if (assigned) tags.push(`in ${assigned.name}`);
-  else if (nodeColors.has(name)) tags.push("custom color");
+  else if (nodeColors.has(name)) tags.push("custom colour");
   if (hasLabelEdit(o)) tags.push("custom label");
   if (nodePositions.has(name) || hasLabelOffset(o)) tags.push("moved");
   return tags.join(" · ");
 }
 
-type GroupMap = Map<SankeyNode, NodeGroup & { id: string }>;
-
 /** A box assigned to a group by hand (via the box editor), if any. */
-function manualGroup(name: string): ColorGroup | undefined {
-  const choice = nodeColors.get(name);
-  if (!choice?.startsWith(GROUP_PREFIX)) return undefined;
-  return groups.find((g) => g.id === choice.slice(GROUP_PREFIX.length));
-}
+const manualGroup = (name: string) => manualGroupOf(nodeColors.get(name), groups);
 
-/** Compiled keyword patterns: every box is checked against every keyword on each draw. */
-const keywordPatterns = new Map<string, RegExp | null>();
-
-/** Does a box name contain a keyword (as a whole word, plural allowed)? */
-function keywordMatch(name: string, keyword: string): boolean {
-  let re = keywordPatterns.get(keyword);
-  if (re === undefined) {
-    const k = keyword.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    re = k ? new RegExp(`(^|\\W)${k}s?(\\W|$)`, "i") : null;
-    // Keywords are typed a letter at a time; don't keep every half-typed one.
-    if (keywordPatterns.size > 500) keywordPatterns.clear();
-    keywordPatterns.set(keyword, re);
-  }
-  return !!re && re.test(name);
-}
-
-/** The group a box falls into automatically: your keywords first, then the built-in rules. */
-function autoGroup(
-  n: SankeyNode,
-  roles: Map<SankeyNode, NodeRole>,
-  memo = new Map<SankeyNode, ColorGroup | undefined>()
-): ColorGroup | undefined {
-  if (memo.has(n)) return memo.get(n);
-  const found = findAutoGroup(n, roles, memo);
-  memo.set(n, found);
-  return found;
-}
-
-function findAutoGroup(
-  n: SankeyNode,
-  roles: Map<SankeyNode, NodeRole>,
-  memo: Map<SankeyNode, ColorGroup | undefined>
-): ColorGroup | undefined {
-  // Keywords are checked from the last group to the first: groups you add (at
-  // the end) win, and outcome groups ("Customer returns" → Returns, "Lost
-  // leads" → Lost) beat the broader groups before them.
-  for (let i = groups.length - 1; i >= 0; i--) {
-    if (groups[i].keywords.some((k) => keywordMatch(n.name, k))) return groups[i];
-  }
-  // Personal / general themes: the name-guessing rules in finance.ts.
-  const r = roles.get(n);
-  const byRole = groups.find((g) => g.role && g.role === r);
-  if (byRole) return byRole;
-  // Professional themes: a box whose parents are all in the same outcome group
-  // joins it (e.g. "Other" under "Operating expenses" → Costs), as in Default.
-  if (n.targetLinks.length) {
-    const parents = new Set(n.targetLinks.map((l) => autoGroup(l.source, roles, memo)));
-    const only = parents.size === 1 ? [...parents][0] : undefined;
-    if (only && only.position !== "start" && only.position !== "middle") return only;
-  }
-  // Otherwise by position in the chart.
-  const pos = !n.targetLinks.length ? "start" : !n.sourceLinks.length ? "end" : "middle";
-  return groups.find((g) => g.position === pos);
-}
-
-/**
- * Each box's group. Order of precedence: assigned by hand, then your keywords,
- * then the built-in rules. Boxes whose group was removed are left out (drawn
- * as "Other").
- */
-function groupsFor(nodes: SankeyNode[], theme: ChartTheme): GroupMap {
-  const roles = computeRoles({ nodes });
-  // One memo for all boxes: a box's automatic group can depend on its parents',
-  // which would otherwise be worked out again for every box below them.
-  const memo = new Map<SankeyNode, ColorGroup | undefined>();
-  const map: GroupMap = new Map();
-  for (const n of nodes) {
-    const g = manualGroup(n.name) ?? autoGroup(n, roles, memo);
-    if (g) map.set(n, { id: g.id, name: g.name, color: groupColor(g, theme) });
-  }
-  return map;
-}
+/** Each box's group in the groups in use (see groupMap in groups.ts). */
+const groupsFor = (nodes: SankeyNode[], theme: ChartTheme): GroupMap =>
+  groupMap(nodes, theme, groups, nodeColors);
 
 /** Box colors for the chart: your color picks, minus group assignments (those come via groups). */
 const chartColors = () =>
@@ -2150,7 +1885,7 @@ function colorGroupKeys(nodes: SankeyNode[]): Map<SankeyNode, string> {
 
 /** The legend + group editor under the Colours dropdown. */
 function renderSchemeHint(theme: ChartTheme, layout: SankeyLayout, gm: GroupMap) {
-  syncColourSelect();
+  syncColorThemeSelect();
   updateGroupWording();
   $("scheme-hint").hidden = false;
 
@@ -2174,117 +1909,25 @@ function renderSchemeHint(theme: ChartTheme, layout: SankeyLayout, gm: GroupMap)
   renderGroupEditor(theme);
 }
 
-/* ---------- Group colors & names (Money flow) ---------- */
+/* ---------- Group colours & names (the rules are in groups.ts) ---------- */
 
-/** Display order of the groups. */
-const ROLE_ORDER: NodeRole[] = ["income", "account", "spending", "savings", "remainder"];
+/** The set of groups in use: Cashflow, Generic, or an industry. */
+let groupSet: GroupSet = CASHFLOW;
+/** The groups in use (their names, colours and keywords as you've edited them). */
+let groups: ColorGroup[] = builtinGroups();
+/** How many groups you've added (numbers their ids). */
+let addedGroupCount = 0;
+/** The Generic theme last picked; the dropdown keeps showing it after you edit a colour. */
+let genericTheme = "traffic";
 
-const DEFAULT_GROUP_NAMES: Record<NodeRole, string> = {
-  income: "Income",
-  account: "Accounts",
-  spending: "Spending",
-  savings: "Savings",
-  remainder: "Remainder",
-};
+/** A built-in group's default name in the set in use. */
+const defaultName = (g: ColorGroup) => defaultGroupName(g, groupSet);
 
-/** Ready-made color sets. "default" (shown as Cashflow) uses the built-in, theme-aware colors. */
-const GROUP_THEMES: { id: string; name: string; colors: Partial<Record<NodeRole, string>> }[] = [
-  { id: "default", name: "Default", colors: {} },
-  {
-    id: "traffic",
-    name: "Traffic light",
-    colors: {
-      income: "#2e9e44",
-      account: "#7a7a7a",
-      spending: "#d64541",
-      savings: "#2f6fb7",
-      remainder: "#e0a100",
-    },
-  },
-  {
-    id: "ocean",
-    name: "Ocean",
-    colors: {
-      income: "#0f7c8c",
-      account: "#5b6770",
-      spending: "#e4572e",
-      savings: "#1d4e89",
-      remainder: "#f2a541",
-    },
-  },
-  {
-    id: "pastel",
-    name: "Pastel",
-    colors: {
-      income: "#6cc28a",
-      account: "#a7a7a7",
-      spending: "#ef7f8f",
-      savings: "#79a7d3",
-      remainder: "#f2c46d",
-    },
-  },
-  {
-    id: "mono",
-    name: "Monochrome",
-    colors: {
-      income: "#1f1f1f",
-      account: "#8a8a8a",
-      spending: "#4d4d4d",
-      savings: "#666666",
-      remainder: "#b3b3b3",
-    },
-  },
-];
-
-/* ColorGroup and GroupSet are defined in memory.ts (they're saved with each diagram). */
-let groupSet: GroupSet = "money";
-const industryOf = (): IndustryId | null =>
-  groupSet === "money" || groupSet === "generic" ? null : groupSet;
-
-/** A built-in group's default name: "Income"… in Money flow, "Group 1"… in the general themes. */
-function defaultName(g: ColorGroup): string {
-  if (!g.role) return "Group";
-  return groupSet === "generic"
-    ? `Group ${ROLE_ORDER.indexOf(g.role) + 1}`
-    : DEFAULT_GROUP_NAMES[g.role];
-}
-
-function industryGroups(id: IndustryId): ColorGroup[] {
-  return industryPreset(id)!.groups.map((g, i) => ({
-    id: `${id}-${i}`,
-    name: g.name,
-    color: null,
-    keywords: [...g.keywords],
-    tone: g.tone,
-    position: g.position,
-  }));
-}
-
-/** The groups a theme starts with, before colouring (see startingGroups). */
-function defaultGroups(): ColorGroup[] {
-  const ind = industryOf();
-  return ind ? industryGroups(ind) : builtinGroups(groupSet === "generic");
-}
-
-/** What "Reset groups" goes back to: the theme's groups, in a Generic theme with its colours. */
-function startingGroups(): ColorGroup[] {
-  const start = defaultGroups();
-  if (groupSet === "generic") {
-    const t = GROUP_THEMES.find((x) => x.id === genericTheme);
-    if (t) for (const g of start) if (g.role) g.color = t.colors[g.role] ?? null;
-  }
-  return start;
-}
-
-function toneColor(tone: Tone, theme: ChartTheme): string {
-  return tone === "blue" ? theme.series[0] : theme.roles[tone];
-}
-
-/** Switches to another set of groups (Money flow, general, or an industry). */
+/** Switches to another set of groups (Cashflow, Generic, or an industry). */
 function switchGroupSet(next: GroupSet) {
   if (next === groupSet) return;
   groupSet = next;
-  groups = defaultGroups();
+  groups = defaultGroups(groupSet);
   dropOrphanedGroupAssignments();
 }
 
@@ -2293,37 +1936,6 @@ function dropOrphanedGroupAssignments() {
   for (const [name, c] of Array.from(nodeColors)) {
     if (c.startsWith(GROUP_PREFIX) && !manualGroup(name)) nodeColors.delete(name);
   }
-}
-
-/** The five built-in groups: named Income… (Money flow) or Group 1… (general themes). */
-const builtinGroups = (numbered = false): ColorGroup[] =>
-  ROLE_ORDER.map((r, i) => ({
-    id: r,
-    name: numbered ? `Group ${i + 1}` : DEFAULT_GROUP_NAMES[r],
-    color: null,
-    keywords: [],
-    role: r,
-  }));
-
-let groups: ColorGroup[] = builtinGroups();
-let addedGroupCount = 0;
-
-function groupColor(g: ColorGroup, theme: ChartTheme): string {
-  if (g.color) return g.color;
-  if (g.role) return theme.roles[g.role];
-  if (g.tone) return toneColor(g.tone, theme);
-  return theme.neutral;
-}
-
-/** Color choice that assigns a box to a group by hand: "group:<id>". */
-const GROUP_PREFIX = "group:";
-
-/** The Generic theme last picked; the dropdown keeps showing it after you edit a colour. */
-let genericTheme = "traffic";
-
-/** Applies a theme's colors to the built-in groups (groups you added keep theirs). */
-function applyThemeColors(colors: Partial<Record<NodeRole, string>>) {
-  for (const g of groups) if (g.role) g.color = colors[g.role] ?? null;
 }
 
 /**
@@ -2337,12 +1949,12 @@ function setupGroupControls() {
   const option = (value: string, text: string) =>
     Object.assign(document.createElement("option"), { value, textContent: text });
 
-  const money = Object.assign(document.createElement("optgroup"), { label: "Personal" });
-  money.appendChild(option(THEME_PREFIX + "default", "Cashflow"));
+  const personal = Object.assign(document.createElement("optgroup"), { label: "Personal" });
+  personal.appendChild(option(THEME_PREFIX + "cashflow", "Cashflow"));
 
-  const other = Object.assign(document.createElement("optgroup"), { label: "Generic" });
+  const generic = Object.assign(document.createElement("optgroup"), { label: "Generic" });
   for (const t of GROUP_THEMES) {
-    if (t.id !== "default") other.appendChild(option(THEME_PREFIX + t.id, t.name));
+    if (t.id !== "cashflow") generic.appendChild(option(THEME_PREFIX + t.id, t.name));
   }
 
   const industries = Object.assign(document.createElement("optgroup"), { label: "Professional" });
@@ -2354,23 +1966,23 @@ function setupGroupControls() {
       })
     );
   }
-  select.append(money, industries, other);
-  select.value = THEME_PREFIX + "default";
-  updateColoursNote();
+  select.append(personal, industries, generic);
+  select.value = THEME_PREFIX + "cashflow";
+  updateStyleHeading();
 
   select.onchange = () => {
     const v = select.value;
     if (v.startsWith(INDUSTRY_PREFIX)) {
       switchGroupSet(v.slice(INDUSTRY_PREFIX.length) as IndustryId);
-    } else if (v === THEME_PREFIX + "default") {
-      switchGroupSet("money");
+    } else if (v === THEME_PREFIX + "cashflow") {
+      switchGroupSet(CASHFLOW);
     } else if (v.startsWith(THEME_PREFIX)) {
       // A Generic theme: Group 1…Group 5. Moving between Generic themes only
       // recolours, so your group names, keywords and added groups stay.
       switchGroupSet("generic");
       genericTheme = v.slice(THEME_PREFIX.length);
       const t = GROUP_THEMES.find((x) => x.id === genericTheme);
-      if (t) applyThemeColors(t.colors);
+      if (t) applyThemeColors(groups, t.colors);
     }
     // Group colours read best with flows colored by where they go.
     $<HTMLSelectElement>("link-color").value = "target";
@@ -2379,7 +1991,7 @@ function setupGroupControls() {
   };
   $("reset-groups-btn").onclick = () => {
     // The theme's groups (in a Generic theme, with that theme's colours).
-    groups = startingGroups();
+    groups = startingGroups(groupSet, genericTheme);
     // Boxes assigned to a group you'd added go back to their automatic group.
     dropOrphanedGroupAssignments();
     draw();
@@ -2409,20 +2021,20 @@ function removeGroup(id: string) {
 }
 
 /** Shows the theme in use in the dropdown (edited colours keep their theme's name). */
-function syncColourSelect() {
+function syncColorThemeSelect() {
   const select = $<HTMLSelectElement>("color-scheme");
-  const ind = industryOf();
+  const ind = industryOf(groupSet);
   select.value = ind
     ? INDUSTRY_PREFIX + ind
     : groupSet === "generic"
       ? THEME_PREFIX + genericTheme
-      : THEME_PREFIX + "default";
-  updateColoursNote();
+      : THEME_PREFIX + "cashflow";
+  updateStyleHeading();
 }
 
 /** The hint under the legend, and the summary table's first heading, for the chosen theme. */
 function updateGroupWording() {
-  const ind = industryOf();
+  const ind = industryOf(groupSet);
   const preset = ind ? industryPreset(ind) : undefined;
   $("stage-col-head").textContent = preset
     ? preset.stageWord
@@ -2431,7 +2043,7 @@ function updateGroupWording() {
       : "Account";
   const hint = $("scheme-hint-text");
   if (groupSet === "generic") {
-    // Same rules as Money flow, described with the (numbered) group names.
+    // Same rules as Cashflow, described with the (numbered) group names.
     const name = (r: NodeRole) => groups.find((g) => g.role === r)?.name;
     const bits = [
       name("income") && `starting boxes go in ${name("income")}`,
@@ -2452,7 +2064,7 @@ function updateGroupWording() {
     hint.innerHTML =
       "Starting boxes (nothing flowing in) go in the first group; others are guessed from names " +
       "(e.g. <i>bills</i>, <i>rent</i>, <i>savings</i>, <i>fund</i>, <i>remainder</i>, <i>account</i>). " +
-      "Click a box to change its color.";
+      "Click a box to change its colour.";
     return;
   }
   // Examples from the current groups, and where unmatched boxes go.
@@ -2473,17 +2085,17 @@ function updateGroupWording() {
 }
 
 /** The Style section heading shows the current theme, so it's visible while collapsed. */
-function updateColoursNote() {
+function updateStyleHeading() {
   const select = $<HTMLSelectElement>("color-scheme");
   const text = select.selectedOptions[0]?.textContent ?? "";
-  $("colours-note").textContent = text;
+  $("style-note").textContent = text;
 }
 
 /** One card per group: color, name, keywords, and Reset (built-in) or Remove. */
 function renderGroupEditor(theme: ChartTheme) {
   // Nothing to reset when the groups are still the current theme's own.
   $<HTMLButtonElement>("reset-groups-btn").disabled =
-    JSON.stringify(groups) === JSON.stringify(startingGroups());
+    JSON.stringify(groups) === JSON.stringify(startingGroups(groupSet, genericTheme));
 
   const rows = $("group-rows");
   // Rebuild the cards only when groups are added or removed, so the input
@@ -2652,11 +2264,11 @@ function renderColorEditor(
   // Swatches are stored as slots/groups, not hex, so they follow the theme.
   const choice = nodeColors.get(node.name);
   const manual = manualGroup(node.name);
-  const auto = autoGroup(node, computeRoles(layout));
+  const auto = autoGroup(node, groups, computeRoles(layout));
 
   // Group colour: picking a group puts the box in it — its color, its name in
   // the tooltip, and its place in "Grouped by colour".
-  $("group-colour-part").hidden = false;
+  $("group-color-part").hidden = false;
   const inGroup = manual ?? auto; // the group the box is in
   renderSwatches(
     $("group-swatches"),
@@ -2683,9 +2295,9 @@ function renderColorEditor(
       color: c,
       name:
         ["Blue", "Orange", "Aqua", "Yellow", "Magenta", "Green", "Violet", "Red"][i] ??
-        `Color ${i + 1}`,
+        `Colour ${i + 1}`,
     })),
-    { choice: "neutral", color: theme.neutral, name: "Gray" },
+    { choice: "neutral", color: theme.neutral, name: "Grey" },
   ];
   renderSwatches(
     $("swatches"),
@@ -2723,8 +2335,8 @@ function fillTable() {
   // Sample data is for getting started; it goes away once there's real data.
   $("sample-section").hidden = true;
   const table = $("flow-table");
-  const [h1, h2, h3] = current!.headers;
-  const flows = current!.flows;
+  const [h1, h2, h3] = loaded!.headers;
+  const flows = loaded!.flows;
   tableImbalance = currentImbalance;
 
   // Where value is unaccounted for: a box that passes on less than it receives
@@ -2781,41 +2393,6 @@ function gapText(name: string, diff: number) {
 
 /* ---------- Writing to Excel ---------- */
 
-/** Rasterizes an SVG element to a Base64 PNG (no data: prefix), as Excel's addImage expects. */
-function svgToPngBase64(
-  svg: SVGSVGElement,
-  width: number,
-  height: number,
-  scale: number
-): Promise<string> {
-  const xml = new XMLSerializer().serializeToString(svg);
-  const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
-  return new Promise((resolve, reject) => {
-    const fail = () => reject(new Error("Couldn't create the chart image."));
-    const img = new Image();
-    img.onload = () => {
-      // An error thrown in here wouldn't reject the promise by itself (e.g. a
-      // canvas the browser treats as "tainted"), leaving Insert stuck for good.
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(width * scale);
-        canvas.height = Math.round(height * scale);
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return fail();
-        ctx.scale(scale, scale);
-        ctx.drawImage(img, 0, 0, width, height);
-        const png = canvas.toDataURL("image/png").split(",")[1];
-        if (!png) return fail();
-        resolve(png);
-      } catch {
-        fail();
-      }
-    };
-    img.onerror = fail;
-    img.src = url;
-  });
-}
-
 /** The sample dropdown: one entry per Style theme subject, defaulting to the current theme's. */
 function setupSampleControls() {
   const select = $<HTMLSelectElement>("sample-select");
@@ -2829,7 +2406,7 @@ function setupSampleControls() {
 
 /** Shows the sample that matches the Style theme in use (Cashflow for the others). */
 function syncSampleSelect() {
-  const ind = industryOf();
+  const ind = industryOf(groupSet);
   $<HTMLSelectElement>("sample-select").value = ind && sampleById(ind) ? ind : "cashflow";
 }
 
@@ -2871,13 +2448,9 @@ async function insertSampleData() {
  */
 function renderPicture(width = chartSize.width ?? EXPORT_WIDTH): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  const { layout, margin } = buildLayout(
-    width,
-    chartMargin(16, 16),
-    undefined,
-    true,
-    chartSize.height
-  );
+  const { layout, margin } = buildLayout(width, chartMargin(16, 16), {
+    height: chartSize.height,
+  });
   renderSankey(svg, layout, chartLook(layout, chartTheme(true), margin));
   return svg;
 }
@@ -2894,15 +2467,13 @@ function popoutContent(width: number): PopoutContent {
   const transparent = backgroundMode() === "transparent";
   let chart: ChartModel | null = null;
   let error: string | undefined;
-  if (current) {
+  if (loaded) {
     try {
       // A chosen size wins over fitting the window.
       const { layout, margin } = buildLayout(
-        chartSize.width ?? Math.max(Math.round(width), MIN_CHART_WIDTH),
+        chartSize.width ?? Math.max(Math.round(width), MIN_LAYOUT_WIDTH),
         chartMargin(16, 16),
-        undefined,
-        true,
-        chartSize.height
+        { height: chartSize.height }
       );
       // The same look as everywhere else, as plain JSON for the window.
       const look = chartLook(layout, theme, margin);
@@ -2919,7 +2490,7 @@ function popoutContent(width: number): PopoutContent {
         ]),
         margin,
         transparent: look.transparent ?? false,
-        title: chartTitle,
+        title: getChartTitle(),
         selected: selectedNode,
         size: chartSize,
       };
@@ -2961,15 +2532,15 @@ function popoutAction(a: PopoutAction) {
     el.dispatchEvent(new Event(a.id === "background-color" ? "input" : "change"));
     return;
   }
-  if (!current) return;
+  if (!loaded) return;
   switch (a.action) {
     case "nodeMoved":
       nodePositions.set(a.name, a.position);
-      markMoved(a.name);
+      refreshNodeTag(a.name);
       break;
     case "labelMoved":
       setOverride(a.name, { ...labelOverrides.get(a.name), dx: a.dx, dy: a.dy });
-      markMoved(a.name);
+      refreshNodeTag(a.name);
       break;
     case "resize":
       // Size set in the window's size menu: the chart size everywhere.
@@ -2993,7 +2564,7 @@ function setupPopout() {
   const changed = (open: boolean) => {
     $("app-body").classList.toggle("popped-out", open);
     $("popout-placeholder").hidden = !open;
-    if (!open && current) draw();
+    if (!open && loaded) draw();
   };
   $("popout-btn").onclick = () => {
     if (!popoutOpen()) {
@@ -3004,7 +2575,7 @@ function setupPopout() {
 }
 
 async function insertChartIntoSheet() {
-  if (!current) return;
+  if (!loaded) return;
   if (!Office.context.requirements.isSetSupported("ExcelApi", "1.9")) {
     throw new Error(
       "This version of Excel can't insert pictures from add-ins. Try Excel for Microsoft 365 or Excel on the web."
@@ -3016,7 +2587,7 @@ async function insertChartIntoSheet() {
   const height = Number(svg.getAttribute("height"));
   const png = await svgToPngBase64(svg, width, height, 2);
 
-  const source = current.source;
+  const source = loaded.source;
   const diagram = diagramById(openDiagramId);
   const picture = await Excel.run(async (context): Promise<SavedPicture> => {
     // Place the picture beside the data it was drawn from.
@@ -3066,6 +2637,7 @@ async function insertChartIntoSheet() {
   // Remember the picture with its diagram: straight away if it's saved
   // (without saving other unsaved changes), otherwise with its first save.
   if (diagram) {
+    // (It's the open diagram already, so that setting needn't change.)
     await saveDiagram({ ...diagram, pictures: [...diagram.pictures, picture] });
     renderMemoryTab();
   } else {

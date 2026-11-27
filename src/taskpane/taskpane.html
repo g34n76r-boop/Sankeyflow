@@ -35,13 +35,13 @@
     <main id="app-body" hidden>
         <!-- Top: title and load buttons on the left; insert button and summary on the right. -->
         <!-- "no-data" until a chart has data: the buttons then sit on the title line and
-             the text and load controls use the full width (excel.ts toggles it). -->
+             the text and load controls use the full width (taskpane.ts toggles it). -->
         <div class="top-bar no-data">
             <div class="top-left">
                 <header class="pane-header">
                     <h1>SankeyFlow</h1>
                     <p id="select-hint" class="hint">Pick a workbook table, or select three columns (<b>Source</b>, <b>Target</b>, <b>Value</b>) and load them. Charts you've saved in this workbook can be opened from the <b>Memory</b> tab.</p>
-                    <!-- Once data is loaded: which diagram this is (excel.ts fills it in). -->
+                    <!-- Once data is loaded: which diagram this is (taskpane.ts fills it in). -->
                     <p id="loaded-info" class="hint" hidden></p>
                 </header>
 
@@ -68,7 +68,7 @@
                         <div id="clear-confirm" class="confirm-pop confirm-left" role="alertdialog" aria-modal="false"
                              aria-labelledby="clear-confirm-title" aria-describedby="clear-confirm-text" hidden>
                             <p id="clear-confirm-title" class="confirm-title">Clear the loaded data?</p>
-                            <!-- Wording and buttons depend on whether there are unsaved changes (excel.ts). -->
+                            <!-- Wording and buttons depend on whether there are unsaved changes (taskpane.ts). -->
                             <p id="clear-confirm-text" class="confirm-text"></p>
                             <div class="confirm-actions">
                                 <button id="clear-cancel" class="btn" type="button">Cancel</button>
@@ -81,7 +81,7 @@
                         <button id="save-btn" class="btn primary" type="button" disabled
                                 title="Save this chart's data link and settings in the workbook"
                                 aria-controls="save-name-pop" aria-expanded="false"><svg class="btn-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M1.5 1.5h10l3 3v10h-13z" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/><rect x="4" y="2" width="6" height="4" fill="currentColor" shape-rendering="crispEdges"/><rect x="3.5" y="8.5" width="9" height="6" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges"/></svg><span id="save-label">Save</span></button>
-                        <!-- The first save of a chart asks for its name (excel.ts). -->
+                        <!-- The first save of a chart asks for its name (taskpane.ts). -->
                         <div id="save-name-pop" class="confirm-pop confirm-left save-name-pop" role="dialog" aria-modal="false"
                              aria-labelledby="save-name-title" hidden>
                             <p id="save-name-title" class="confirm-title">Save this chart</p>
@@ -133,7 +133,7 @@
                 <button id="tab-memory" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-memory" tabindex="-1">Memory</button>
             </div>
 
-            <!-- As wide as the summary table (set by excel.ts): the alert on the left, the ⓘ
+            <!-- As wide as the summary table (set by taskpane.ts): the alert on the left, the ⓘ
                  (explains it; stays after dismissing) on the right. Its space is always kept
                  so nothing moves when it appears. -->
             <div id="imbalance-row" class="imbalance-row is-invisible" aria-hidden="true">
@@ -167,7 +167,7 @@
                         <tr><td>Budget</td><td>Savings</td><td>2200</td></tr>
                     </tbody>
                 </table>
-                <!-- The example above drawn with your current style (kept in step by excel.ts). -->
+                <!-- The example above drawn with your current style (kept in step by taskpane.ts). -->
                 <p class="preview-caption">…which draws like this:</p>
                 <div id="example-preview" class="chart example-preview">
                     <svg id="example-svg" role="img" aria-label="Preview of the example data as a Sankey diagram"></svg>
@@ -232,7 +232,7 @@
                                 <option value="transparent">Transparent</option>
                                 <option value="custom">Custom…</option>
                             </select>
-                            <input type="color" id="background-color" value="#f5f1e8" aria-label="Background color" title="Background color" hidden />
+                            <input type="color" id="background-color" value="#f5f1e8" aria-label="Background colour" title="Background colour" hidden />
                         </div>
                         <div class="field">
                             <label for="node-order">Order</label>
@@ -279,7 +279,7 @@
                     <input type="text" id="subtitle-text" class="text-input" placeholder="Optional" maxlength="160" autocomplete="off" />
 
                     <label for="title-font">Font</label>
-                    <!-- "Same as labels" plus the label font choices; filled in by excel.ts -->
+                    <!-- "Same as labels" plus the label font choices; filled in by taskpane.ts -->
                     <select id="title-font"></select>
 
                     <label for="title-size">Size</label>
@@ -314,16 +314,16 @@
                 </div>
             </details>
 
-            <details class="customize section-details colour-panel" id="colours-section">
-                <summary><h2 id="colours-title">Style</h2><span id="colours-note" class="summary-note"></span></summary>
+            <details class="customize section-details color-panel" id="style-section">
+                <summary><h2 id="style-title">Style</h2><span id="style-note" class="summary-note"></span></summary>
                 <label class="field">
                     <span>Colour theme</span>
-                    <!-- Options (Money flow themes + Palette) are added by excel.ts -->
+                    <!-- Options (the colour themes) are added by taskpane.ts -->
                     <select id="color-scheme"></select>
                 </label>
                 <div id="scheme-hint" class="scheme-hint">
                     <div id="group-legend" class="group-legend"></div>
-                    <!-- Filled in by excel.ts for the chosen theme. -->
+                    <!-- Filled in by taskpane.ts for the chosen theme. -->
                     <p id="scheme-hint-text"></p>
 
                     <details class="group-editor" id="group-editor">
@@ -342,16 +342,16 @@
                 <summary><h2 id="customize-title">Customisation</h2><span class="summary-note">boxes, colours &amp; positions</span></summary>
                 <div class="link-actions section-actions">
                     <button id="reset-positions-btn" class="link-btn" type="button" disabled>Reset layout</button>
-                    <button id="reset-colors-btn" class="link-btn" type="button" disabled>Reset colors</button>
+                    <button id="reset-colors-btn" class="link-btn" type="button" disabled>Reset colours</button>
                 </div>
-                <p class="hint">Drag a box in the chart to move it. It snaps into line with other boxes; hold <kbd>Alt</kbd> to move it freely. Click a box, or a name below, to change its color.</p>
+                <p class="hint">Drag a box in the chart to move it. It snaps into line with other boxes; hold <kbd>Alt</kbd> to move it freely. Click a box, or a name below, to change its colour.</p>
 
                 <div id="color-editor" class="color-editor" hidden>
                     <div class="editor-title">
                         <span id="editor-swatch" class="dot"></span>
                         <strong id="editor-name"></strong>
                     </div>
-                    <div id="group-colour-part">
+                    <div id="group-color-part">
                         <div class="editor-label">Group colour</div>
                         <div id="group-swatches" class="swatches" role="radiogroup" aria-label="Group"></div>
                         <p id="group-note" class="muted editor-note"></p>
@@ -364,7 +364,7 @@
                             <span>Custom</span>
                             <input type="color" id="custom-color" />
                         </label>
-                        <button id="reset-node-color" class="link-btn" type="button">Default color</button>
+                        <button id="reset-node-color" class="link-btn" type="button">Default colour</button>
                         <button id="reset-node-position" class="link-btn" type="button">Default position</button>
                     </div>
 
@@ -409,8 +409,8 @@
                     <span>Style</span>
                     <div class="inline">
                         <label class="check"><input type="checkbox" id="label-bold" /> <span>Bold names</span></label>
-                        <input type="color" id="label-color" aria-label="Label color" title="Label color" />
-                        <button id="label-color-auto" class="link-btn" type="button">Auto color</button>
+                        <input type="color" id="label-color" aria-label="Label colour" title="Label colour" />
+                        <button id="label-color-auto" class="link-btn" type="button">Auto colour</button>
                     </div>
 
                     <label for="label-placement">Position</label>
@@ -475,11 +475,11 @@
         </div>
 
         <div id="panel-data" class="tab-panel" role="tabpanel" aria-labelledby="tab-data" hidden>
-            <!-- Only while no data is loaded (excel.ts hides it once a chart has data). -->
+            <!-- Only while no data is loaded (taskpane.ts hides it once a chart has data). -->
             <section id="sample-section" class="sample-section" aria-labelledby="sample-title">
                 <h2 id="sample-title">Sample data</h2>
                 <div class="inline sample-row">
-                    <!-- One sample per Style theme subject; filled in by excel.ts -->
+                    <!-- One sample per Style theme subject; filled in by taskpane.ts -->
                     <select id="sample-select" aria-label="Sample data subject"></select>
                     <button id="sample-btn" class="btn" type="button">Insert sample data</button>
                 </div>

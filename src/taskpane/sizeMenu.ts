@@ -7,12 +7,11 @@
 
 /* global document, HTMLButtonElement, HTMLInputElement, Node, KeyboardEvent */
 
-import { MAX_CHART_H, MAX_CHART_W, MIN_CHART_H, MIN_CHART_W, parseChartSize } from "./resize";
+import { CHART_SIZE_LIMITS, parseChartSize } from "./chartSize";
+import type { ChartSize } from "./chartSize";
 
-export interface ChartSize {
-  width: number | null;
-  height: number | null;
-}
+const [MIN_W, MAX_W] = CHART_SIZE_LIMITS.width;
+const [MIN_H, MAX_H] = CHART_SIZE_LIMITS.height;
 
 export interface SizeMenu {
   /** Shows the chosen size, with the chart's drawn size as the "auto" hint. */
@@ -46,10 +45,10 @@ export function attachSizeMenu(
   menu.innerHTML = `
     <div class="size-menu-title">Chart size</div>
     <label class="size-menu-row"><span>Width</span>
-      <input type="number" class="size-menu-input" data-axis="width" min="${MIN_CHART_W}" max="${MAX_CHART_W}" step="10" placeholder="auto" aria-label="Chart width in pixels (blank for automatic)" />
+      <input type="number" class="size-menu-input" data-axis="width" min="${MIN_W}" max="${MAX_W}" step="10" placeholder="auto" aria-label="Chart width in pixels (blank for automatic)" />
       <span class="size-menu-unit">px</span></label>
     <label class="size-menu-row"><span>Height</span>
-      <input type="number" class="size-menu-input" data-axis="height" min="${MIN_CHART_H}" max="${MAX_CHART_H}" step="10" placeholder="auto" aria-label="Chart height in pixels (blank for automatic)" />
+      <input type="number" class="size-menu-input" data-axis="height" min="${MIN_H}" max="${MAX_H}" step="10" placeholder="auto" aria-label="Chart height in pixels (blank for automatic)" />
       <span class="size-menu-unit">px</span></label>
     <p class="size-menu-hint">Leave blank for automatic. Also used for the picture inserted into the sheet.</p>
     <button type="button" class="size-menu-auto">Automatic size</button>`;
