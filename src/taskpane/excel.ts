@@ -979,40 +979,107 @@ function captureSettings(): DiagramSettings {
   });
 }
 
+/** A plain object, or {} for anything else (null, an array, a string…). */
+const asObject = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+/** `v` if it's a finite number or null, otherwise `fallback`. */
+const sizeOr = (v: unknown, fallback: number | null) =>
+  v === null || (typeof v === "number" && isFinite(v)) ? v : fallback;
+
+const isGroupSet = (v: unknown): v is GroupSet =>
+  v === "money" || v === "generic" || (typeof v === "string" && !!industryPreset(v));
+
 /**
- * Puts saved settings into the pane (state and controls). Anything missing
- * (e.g. saved by an older version) falls back to the default.
+ * Saved settings with every gap filled from the defaults, at every level, and
+ * anything of the wrong kind (from an older version, or edited by hand)
+ * replaced by its default rather than breaking the pane.
  */
-function applySettings(saved: Partial<DiagramSettings>) {
+function withDefaults(saved: Partial<DiagramSettings>): DiagramSettings {
   // Copied as a whole: defaults filled in for missing settings must not be
   // shared with defaultSettings, or editing them (e.g. a group's colour, which
   // is changed in place) would change what Clear goes back to.
-  const s: DiagramSettings = clone({ ...defaultSettings!, ...saved });
+  const d = clone(defaultSettings!);
+  const s = asObject(clone(saved ?? {}));
+  const list = <T>(v: unknown, fallback: T[]): T[] => (Array.isArray(v) ? (v as T[]) : fallback);
+  // [name, value] lists: keep only well-formed pairs.
+  const pairs = <V>(v: unknown, fallback: [string, V][]): [string, V][] =>
+    list<unknown>(v, fallback).filter(
+      (e): e is [string, V] => Array.isArray(e) && e.length === 2 && typeof e[0] === "string"
+    );
+  const background = asObject(s.background);
+  const chartSizeSaved = asObject(s.chartSize);
+  const color = background.color;
+  return {
+    nodeColors: pairs(s.nodeColors, d.nodeColors),
+    nodePositions: pairs(s.nodePositions, d.nodePositions),
+    labelOverrides: pairs(s.labelOverrides, d.labelOverrides),
+    labelSettings: { ...d.labelSettings, ...asObject(s.labelSettings) } as LabelSettings,
+    chartTitle: { ...d.chartTitle, ...asObject(s.chartTitle) } as ChartTitle,
+    groupSet: isGroupSet(s.groupSet) ? s.groupSet : d.groupSet,
+    groups: list<ColorGroup>(s.groups, d.groups).filter(
+      (g) => !!g && typeof g.id === "string" && typeof g.name === "string"
+    ),
+    genericTheme: typeof s.genericTheme === "string" ? s.genericTheme : d.genericTheme,
+    addedGroupCount:
+      typeof s.addedGroupCount === "number" && isFinite(s.addedGroupCount)
+        ? s.addedGroupCount
+        : d.addedGroupCount,
+    background: {
+      mode: (background.mode as BackgroundMode) ?? d.background.mode,
+      color:
+        typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color) ? color : d.background.color,
+    },
+    linkColor: (s.linkColor as LinkColorMode) ?? d.linkColor,
+    endAlign: (s.endAlign as DiagramSettings["endAlign"]) ?? d.endAlign,
+    nodeOrder: (s.nodeOrder as DiagramSettings["nodeOrder"]) ?? d.nodeOrder,
+    chartSize: {
+      width: sizeOr(chartSizeSaved.width, d.chartSize.width),
+      height: sizeOr(chartSizeSaved.height, d.chartSize.height),
+    },
+    summaryCollapsed:
+      typeof s.summaryCollapsed === "boolean" ? s.summaryCollapsed : d.summaryCollapsed,
+  };
+}
+
+/** Sets a dropdown, falling back to `fallback` if `value` isn't one of its options. */
+function setSelect(id: string, value: string, fallback: string) {
+  const el = $<HTMLSelectElement>(id);
+  el.value = value;
+  if (el.value !== value) el.value = fallback;
+}
+
+/**
+ * Puts saved settings into the pane (state and controls). Anything missing or
+ * unusable (e.g. saved by an older version) falls back to the default.
+ */
+function applySettings(saved: Partial<DiagramSettings>) {
+  const s = withDefaults(saved);
+  const d = defaultSettings!;
   const refill = <V>(map: Map<string, V>, entries: [string, V][]) => {
     map.clear();
-    for (const [k, v] of entries ?? []) map.set(k, v);
+    for (const [k, v] of entries) map.set(k, v);
   };
   refill(nodeColors, s.nodeColors);
   refill(nodePositions, s.nodePositions);
   refill(labelOverrides, s.labelOverrides);
-  labelSettings = { ...DEFAULT_LABELS, ...s.labelSettings };
-  chartTitle = { ...DEFAULT_TITLE, ...s.chartTitle };
+  labelSettings = s.labelSettings;
+  chartTitle = s.chartTitle;
   groupSet = s.groupSet;
   groups = s.groups;
   genericTheme = s.genericTheme;
   addedGroupCount = s.addedGroupCount;
-  chartSize = { width: s.chartSize?.width ?? null, height: s.chartSize?.height ?? null };
-  summaryCollapsed = !!s.summaryCollapsed;
+  chartSize = s.chartSize;
+  summaryCollapsed = s.summaryCollapsed;
   selectedNode = null;
 
-  const mode = $<HTMLSelectElement>("background-mode");
+  setSelect("background-mode", s.background.mode, d.background.mode);
   const color = $<HTMLInputElement>("background-color");
-  mode.value = s.background.mode;
   color.value = s.background.color;
-  color.hidden = mode.value !== "custom";
-  $<HTMLSelectElement>("link-color").value = s.linkColor;
-  $<HTMLSelectElement>("end-align").value = s.endAlign;
-  $<HTMLSelectElement>("node-order").value = s.nodeOrder;
+  color.hidden = backgroundMode() !== "custom";
+  setSelect("link-color", s.linkColor, d.linkColor);
+  setSelect("end-align", s.endAlign, d.endAlign);
+  setSelect("node-order", s.nodeOrder, d.nodeOrder);
 
   // The group cards are rebuilt for the new groups.
   $("group-rows").dataset.sig = "";
@@ -2753,6 +2820,7 @@ function popoutContent(width: number): PopoutContent {
   const theme = chartTheme(true);
   const transparent = backgroundMode() === "transparent";
   let chart: ChartModel | null = null;
+  let error: string | undefined;
   if (current) {
     try {
       // A chosen size wins over fitting the window.
@@ -2783,13 +2851,22 @@ function popoutContent(width: number): PopoutContent {
         selected: selectedNode,
         size: chartSize,
       };
-    } catch {
-      chart = null; // e.g. the data can't be drawn; the pane shows why.
+    } catch (e) {
+      // e.g. the data can't be drawn: the window says why, as the pane does.
+      chart = null;
+      error = friendlyError(e);
     }
   }
   const options = {} as ToolbarOptions;
   for (const id of TOOLBAR_OPTION_IDS) options[id] = $<HTMLInputElement>(id).value;
-  return { chart, background: theme.surface, text: theme.textSecondary, transparent, options };
+  return {
+    chart,
+    error,
+    background: theme.surface,
+    text: theme.textSecondary,
+    transparent,
+    options,
+  };
 }
 
 /** The toolbar's options; while popped out they're set from the window's toolbar. */

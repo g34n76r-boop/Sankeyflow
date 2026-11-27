@@ -23,6 +23,7 @@ let render: ((width: number) => PopoutContent) | null = null;
 let width = 960;
 let onChange: ((open: boolean) => void) | null = null;
 let onAction: ((a: PopoutAction) => void) | null = null;
+let reportError: ((message: string) => void) | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let seq = 0;
 
@@ -51,6 +52,7 @@ export function openPopout(
   }
   render = content;
   onChange = changed;
+  reportError = onError;
   const url = new URL("preview.html", window.location.href).toString();
   Office.context.ui.displayDialogAsync(
     url,
@@ -117,16 +119,34 @@ export function refreshPopout() {
 }
 
 function send() {
+  // Runs from a timer or a window message, so nothing above would catch an
+  // error: every failure is handled (and reported) here.
+  timer = undefined;
   if (!dialog || !ready || !render) return;
   let payload: string;
   try {
     payload = JSON.stringify(render(width));
-  } catch {
+  } catch (e) {
+    // Building the update failed (not just "can't draw this data", which the
+    // window is told about): keep the last chart there, and say so here.
+    const why = e instanceof Error ? e.message : String(e);
+    reportError?.(`Couldn't update the chart window (${why}).`);
     return;
   }
   const id = ++seq;
   const n = Math.max(1, Math.ceil(payload.length / CHUNK));
-  for (let i = 0; i < n; i++) {
-    dialog.messageChild(JSON.stringify({ id, i, n, d: payload.slice(i * CHUNK, (i + 1) * CHUNK) }));
+  try {
+    for (let i = 0; i < n; i++) {
+      dialog.messageChild(
+        JSON.stringify({ id, i, n, d: payload.slice(i * CHUNK, (i + 1) * CHUNK) })
+      );
+    }
+  } catch {
+    // The window is gone or no longer answering (e.g. it closed while this
+    // update was waiting). Close it properly so the pane shows its chart again.
+    closePopout();
+    reportError?.(
+      "The chart window stopped responding, so it was closed. Pop it out again to reopen it."
+    );
   }
 }

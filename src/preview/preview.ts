@@ -181,8 +181,9 @@ function show(content: PopoutContent) {
   }
   if (content.options) showOptions(content.options);
   if (!content.chart) {
-    message.textContent =
-      "No data loaded. Pick a table or load cells in the task pane to see the chart here.";
+    message.textContent = content.error
+      ? `The chart can't be drawn: ${content.error}`
+      : "No data loaded. Pick a table or load cells in the task pane to see the chart here.";
     return;
   }
   draw(content.chart);

@@ -41,8 +41,10 @@ export interface ChartModel {
 
 /** Everything the window shows. */
 export interface PopoutContent {
-  /** The chart, or null when there's no data loaded. */
+  /** The chart, or null when there's no data loaded (or it can't be drawn: see `error`). */
   chart: ChartModel | null;
+  /** Why the chart can't be drawn, when data is loaded but drawing it failed. */
+  error?: string;
   /** Colour behind the chart (the window's page background). */
   background: string;
   /** Text colour for messages in the window. */
