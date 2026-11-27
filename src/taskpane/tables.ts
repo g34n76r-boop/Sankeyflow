@@ -238,10 +238,10 @@ async function refreshTableList(): Promise<{ id: string; name: string; sheet: st
   }
   select.disabled = tables.length === 0;
 
-  // Keep the current choice if that table still exists; otherwise clear the list.
+  // Keep the current choice if that table still exists (it's still being
+  // watched, so there's no need to read it again); otherwise clear the list.
   if (previous && tables.some((t) => t.id === previous)) {
     select.value = previous;
-    await pickTable(previous);
   } else {
     select.value = "";
     await stopWatching();

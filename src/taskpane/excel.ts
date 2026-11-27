@@ -6,7 +6,6 @@ import type { Flow, NodePosition, SankeyLayout, SankeyNode } from "./sankey";
 import {
   DARK_THEME,
   LIGHT_THEME,
-  defaultNodeColor,
   formatValue,
   nodeColor,
   renderSankey,
@@ -166,7 +165,7 @@ function setupTitleControls() {
   const update = (patch: Partial<ChartTitle>) => {
     chartTitle = { ...chartTitle, ...patch };
     syncTitleControls();
-    draw();
+    scheduleDraw(); // typing and the colour picker fire on every change
   };
   text.addEventListener("input", () => update({ text: text.value }));
   sub.addEventListener("input", () => update({ subtitle: sub.value }));
@@ -297,7 +296,7 @@ Office.onReady((info) => {
       ...labelOverrides.get(selectedNode),
       text: text.trim() ? text : undefined,
     });
-    draw();
+    scheduleDraw();
   });
   $<HTMLSelectElement>("node-label-placement").onchange = (e) => {
     if (!selectedNode) return;
@@ -393,7 +392,7 @@ function setOverride(name: string, o: NodeLabelOverride) {
 function updateLabels(patch: Partial<LabelSettings>) {
   labelSettings = { ...labelSettings, ...patch };
   syncLabelControls();
-  draw();
+  scheduleDraw(); // typing and the colour picker fire on every change
 }
 
 function setupLabelControls() {
@@ -598,7 +597,7 @@ function setupBackgroundControls() {
   };
   color.addEventListener("input", () => {
     syncLabelControls();
-    draw();
+    scheduleDraw();
   });
 }
 
@@ -1436,7 +1435,27 @@ function renderExamplePreview() {
   }
 }
 
+let drawFrame: number | null = null;
+
+/**
+ * Redraws on the next frame, once however often it's asked. For controls that
+ * fire continuously (typing, dragging a colour picker): each event used to lay
+ * the chart out and rebuild the pane again, many times a frame.
+ */
+function scheduleDraw() {
+  if (drawFrame !== null) return;
+  drawFrame = window.requestAnimationFrame(() => {
+    drawFrame = null;
+    draw();
+  });
+}
+
 function draw(opts: { focusSelected?: boolean } = {}) {
+  // A redraw now makes any scheduled one unnecessary.
+  if (drawFrame !== null) {
+    window.cancelAnimationFrame(drawFrame);
+    drawFrame = null;
+  }
   // Whatever changed, the pop-out window (if open) follows, and Save settings
   // shows whether there's something to save.
   refreshPopout();
@@ -1914,7 +1933,7 @@ function selectNode(name: string, fromChart: boolean) {
 function setNodeColor(name: string, choice: ColorChoice | null) {
   if (choice) nodeColors.set(name, choice);
   else nodeColors.delete(name);
-  draw();
+  scheduleDraw(); // the custom colour picker fires continuously
 }
 
 const hasLabelOffset = (o: NodeLabelOverride | undefined) => !!(o && (o.dx || o.dy));
@@ -1965,10 +1984,20 @@ function manualGroup(name: string): ColorGroup | undefined {
   return groups.find((g) => g.id === choice.slice(GROUP_PREFIX.length));
 }
 
+/** Compiled keyword patterns: every box is checked against every keyword on each draw. */
+const keywordPatterns = new Map<string, RegExp | null>();
+
 /** Does a box name contain a keyword (as a whole word, plural allowed)? */
 function keywordMatch(name: string, keyword: string): boolean {
-  const k = keyword.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return !!k && new RegExp(`(^|\\W)${k}s?(\\W|$)`, "i").test(name);
+  let re = keywordPatterns.get(keyword);
+  if (re === undefined) {
+    const k = keyword.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    re = k ? new RegExp(`(^|\\W)${k}s?(\\W|$)`, "i") : null;
+    // Keywords are typed a letter at a time; don't keep every half-typed one.
+    if (keywordPatterns.size > 500) keywordPatterns.clear();
+    keywordPatterns.set(keyword, re);
+  }
+  return !!re && re.test(name);
 }
 
 /** The group a box falls into automatically: your keywords first, then the built-in rules. */
@@ -2011,16 +2040,18 @@ function findAutoGroup(
 }
 
 /**
- * Each box's group (undefined only if group colouring is off). Order of
- * precedence: assigned by hand, then your keywords, then the built-in rules.
- * Boxes whose group was removed are left out (drawn as "Other").
+ * Each box's group. Order of precedence: assigned by hand, then your keywords,
+ * then the built-in rules. Boxes whose group was removed are left out (drawn
+ * as "Other").
  */
-function groupsFor(nodes: SankeyNode[], theme: ChartTheme): GroupMap | undefined {
-  if (!isMoneyFlow()) return undefined;
+function groupsFor(nodes: SankeyNode[], theme: ChartTheme): GroupMap {
   const roles = computeRoles({ nodes });
+  // One memo for all boxes: a box's automatic group can depend on its parents',
+  // which would otherwise be worked out again for every box below them.
+  const memo = new Map<SankeyNode, ColorGroup | undefined>();
   const map: GroupMap = new Map();
   for (const n of nodes) {
-    const g = manualGroup(n.name) ?? autoGroup(n, roles);
+    const g = manualGroup(n.name) ?? autoGroup(n, roles, memo);
     if (g) map.set(n, { id: g.id, name: g.name, color: groupColor(g, theme) });
   }
   return map;
@@ -2041,13 +2072,11 @@ function colorGroupKeys(nodes: SankeyNode[]): Map<SankeyNode, string> {
   return new Map(nodes.map((n) => [n, nodeColor(n, theme, colors, gm).toLowerCase()]));
 }
 
-/** The legend + group editor under the Colours dropdown (Money flow only). */
-function renderSchemeHint(theme: ChartTheme, layout: SankeyLayout, gm: GroupMap | undefined) {
-  const hint = $("scheme-hint");
+/** The legend + group editor under the Colours dropdown. */
+function renderSchemeHint(theme: ChartTheme, layout: SankeyLayout, gm: GroupMap) {
   syncColourSelect();
   updateGroupWording();
-  hint.hidden = !isMoneyFlow();
-  if (hint.hidden) return;
+  $("scheme-hint").hidden = false;
 
   // Legend: one dot + name per group, plus "Other" if some boxes have no group.
   const legend = $("group-legend");
@@ -2062,7 +2091,8 @@ function renderSchemeHint(theme: ChartTheme, layout: SankeyLayout, gm: GroupMap 
     legend.appendChild(el);
   };
   for (const g of groups) item(groupColor(g, theme), g.name);
-  if (gm && layout.nodes.some((n) => !gm.has(n) && !chartColors().has(n.name))) {
+  const colors = chartColors();
+  if (layout.nodes.some((n) => !gm.has(n) && !colors.has(n.name))) {
     item(theme.neutral, "Other");
   }
   renderGroupEditor(theme);
@@ -2213,9 +2243,6 @@ const INDUSTRY_PREFIX = "industry:";
 
 /** The Generic theme last picked; the dropdown keeps showing it after you edit a colour. */
 let genericTheme = "traffic";
-
-/** Boxes are always coloured by group (the one-colour-per-box Palette option was removed). */
-const isMoneyFlow = () => true;
 
 /** Applies a theme's colors to the built-in groups (groups you added keep theirs). */
 function applyThemeColors(colors: Partial<Record<NodeRole, string>>) {
@@ -2426,7 +2453,7 @@ function groupCard(g: ColorGroup): HTMLElement {
     const c = cur();
     if (!c) return;
     c.color = color.value;
-    draw();
+    scheduleDraw();
   });
 
   const name = Object.assign(document.createElement("input"), {
@@ -2440,7 +2467,7 @@ function groupCard(g: ColorGroup): HTMLElement {
     const c = cur();
     if (!c) return;
     c.name = name.value.trim() || (c.role ? defaultName(c) : "Group");
-    draw();
+    scheduleDraw();
   });
 
   const actions = document.createElement("span");
@@ -2485,19 +2512,20 @@ function groupCard(g: ColorGroup): HTMLElement {
       .split(",")
       .map((k) => k.trim())
       .filter(Boolean);
-    draw();
+    scheduleDraw();
   });
 
   card.append(color, name, actions, words);
   return card;
 }
 
-function renderCustomize(layout: SankeyLayout, theme: ChartTheme, gm: GroupMap | undefined) {
+function renderCustomize(layout: SankeyLayout, theme: ChartTheme, gm: GroupMap) {
   renderLabelPreview(layout, theme);
 
   // Node list: one row per node, in order of first appearance (the palette order).
   const list = $("node-list");
   list.innerHTML = "";
+  const colors = chartColors();
   for (const n of layout.nodes) {
     const li = document.createElement("li");
     const btn = document.createElement("button");
@@ -2506,7 +2534,7 @@ function renderCustomize(layout: SankeyLayout, theme: ChartTheme, gm: GroupMap |
     btn.setAttribute("aria-current", String(n.name === selectedNode));
     const dot = document.createElement("span");
     dot.className = "dot";
-    dot.style.background = nodeColor(n, theme, chartColors(), gm);
+    dot.style.background = nodeColor(n, theme, colors, gm);
     const label = document.createElement("span");
     label.textContent = n.name;
     const tag = document.createElement("span");
@@ -2530,7 +2558,7 @@ function renderColorEditor(
   node: SankeyNode,
   layout: SankeyLayout,
   theme: ChartTheme,
-  gm: GroupMap | undefined
+  gm: GroupMap
 ) {
   const color = nodeColor(node, theme, chartColors(), gm);
   $("editor-name").textContent = node.name;
@@ -2548,32 +2576,29 @@ function renderColorEditor(
   // Swatches are stored as slots/groups, not hex, so they follow the theme.
   const choice = nodeColors.get(node.name);
   const manual = manualGroup(node.name);
-  const auto = gm ? autoGroup(node, computeRoles(layout)) : undefined;
-  const defaultColor = defaultNodeColor(node, theme, gm && withoutManual(gm, node, auto, theme));
+  const auto = autoGroup(node, computeRoles(layout));
 
-  // Group colour (Money flow only): picking a group puts the box in it — its
-  // color, its name in the tooltip, and its place in "Grouped by colour".
-  $("group-colour-part").hidden = !gm;
-  if (gm) {
-    const current = manual ?? auto; // the group the box is in
-    renderSwatches(
-      $("group-swatches"),
-      groups.map((g) => ({
-        choice: GROUP_PREFIX + g.id,
-        color: groupColor(g, theme),
-        name: g.name,
-        checked: !!current && g.id === current.id && (!choice || !!manual),
-        // Picking the group it would be in anyway clears the override.
-        apply: g.id === auto?.id ? null : GROUP_PREFIX + g.id,
-      }))
-    );
-    const autoName = auto ? auto.name : "no group (Other)";
-    $("group-note").textContent = manual
-      ? `Put in ${manual.name} by hand. Automatically it would be in ${autoName}.`
-      : choice
-        ? `In ${autoName}, but showing an individual colour (below).`
-        : `Automatically in ${autoName}${auto ? " (from its name or position)" : ""}.`;
-  }
+  // Group colour: picking a group puts the box in it — its color, its name in
+  // the tooltip, and its place in "Grouped by colour".
+  $("group-colour-part").hidden = false;
+  const inGroup = manual ?? auto; // the group the box is in
+  renderSwatches(
+    $("group-swatches"),
+    groups.map((g) => ({
+      choice: GROUP_PREFIX + g.id,
+      color: groupColor(g, theme),
+      name: g.name,
+      checked: !!inGroup && g.id === inGroup.id && (!choice || !!manual),
+      // Picking the group it would be in anyway clears the override.
+      apply: g.id === auto?.id ? null : GROUP_PREFIX + g.id,
+    }))
+  );
+  const autoName = auto ? auto.name : "no group (Other)";
+  $("group-note").textContent = manual
+    ? `Put in ${manual.name} by hand. Automatically it would be in ${autoName}.`
+    : choice
+      ? `In ${autoName}, but showing an individual colour (below).`
+      : `Automatically in ${autoName}${auto ? " (from its name or position)" : ""}.`;
 
   // Individual colour: just this box, whatever its group.
   const individual = [
@@ -2588,15 +2613,9 @@ function renderColorEditor(
   ];
   renderSwatches(
     $("swatches"),
-    individual.map((c) => {
-      // Without group colouring a box's default color is one of these; picking it clears the override.
-      const isDefault = !gm && c.color === defaultColor;
-      return {
-        ...c,
-        checked: choice ? choice === c.choice : isDefault,
-        apply: isDefault ? null : c.choice,
-      };
-    })
+    // Boxes take their group's colour by default, so none of these is checked
+    // unless picked.
+    individual.map((c) => ({ ...c, checked: choice === c.choice, apply: c.choice }))
   );
 }
 
@@ -2620,19 +2639,6 @@ function renderSwatches(
     };
     box.appendChild(b);
   }
-}
-
-/** The group map as it would be without this box's hand assignment. */
-function withoutManual(
-  gm: GroupMap,
-  node: SankeyNode,
-  auto: ColorGroup | undefined,
-  theme: ChartTheme
-): GroupMap {
-  const copy: GroupMap = new Map(gm);
-  if (auto) copy.set(node, { id: auto.id, name: auto.name, color: groupColor(auto, theme) });
-  else copy.delete(node);
-  return copy;
 }
 
 function fillTable() {
@@ -2839,12 +2845,10 @@ function popoutContent(width: number): PopoutContent {
         labels: labelSettings,
         labelOverrides: Array.from(labelOverrides),
         colors: Array.from(chartColors()),
-        groups: gm
-          ? Array.from(gm, ([n, g]): [number, NodeGroup] => [
-              n.index,
-              { name: g.name, color: g.color },
-            ])
-          : undefined,
+        groups: Array.from(gm, ([n, g]): [number, NodeGroup] => [
+          n.index,
+          { name: g.name, color: g.color },
+        ]),
         margin,
         transparent,
         title: chartTitle,

@@ -17,10 +17,11 @@ module.exports = async (env, options) => {
   const dev = options.mode === "development";
   const config = {
     devtool: "source-map",
+    // No polyfill bundle: the targets in package.json's "browserslist" (the
+    // Office webviews: WebView2 on Windows, Safari 14+ on Mac, and browsers for
+    // Excel on the web) support everything the code uses.
     entry: {
-      polyfill: ["core-js/stable", "regenerator-runtime/runtime"],
       taskpane: ["./src/taskpane/taskpane.ts", "./src/taskpane/taskpane.html"],
-      commands: "./src/commands/commands.ts",
       preview: "./src/preview/preview.ts",
     },
     output: {
@@ -56,7 +57,7 @@ module.exports = async (env, options) => {
       new HtmlWebpackPlugin({
         filename: "taskpane.html",
         template: "./src/taskpane/taskpane.html",
-        chunks: ["polyfill", "taskpane"],
+        chunks: ["taskpane"],
       }),
       new CopyWebpackPlugin({
         patterns: [
@@ -77,16 +78,11 @@ module.exports = async (env, options) => {
           },
         ],
       }),
-      new HtmlWebpackPlugin({
-        filename: "commands.html",
-        template: "./src/commands/commands.html",
-        chunks: ["polyfill", "commands"],
-      }),
       // The pop-out chart window.
       new HtmlWebpackPlugin({
         filename: "preview.html",
         template: "./src/preview/preview.html",
-        chunks: ["polyfill", "preview"],
+        chunks: ["preview"],
       }),
     ],
     devServer: {

@@ -546,7 +546,12 @@ export function renderSankey(
     }
   };
 
-  const place = () => {
+  /**
+   * Positions everything. `markImbalance: false` (while a box is dragged)
+   * hides the unaccounted-for markers instead of rebuilding them on every
+   * pointer move; they're rebuilt once the drag ends.
+   */
+  const place = (markImbalance = true) => {
     for (const [l, p] of linkEls) p.setAttribute("d", linkPath(l));
     for (const [l, p] of linkHits) p.setAttribute("d", linkPath(l));
     for (const [n, e] of nodeEls) {
@@ -563,7 +568,12 @@ export function renderSankey(
       }
     }
     // Boxes moved: redraw the unaccounted-for markers around their new places.
-    if (imbalanceOn) highlightImbalance(true);
+    if (!imbalanceOn) return;
+    if (markImbalance) highlightImbalance(true);
+    else {
+      imbalanceLayer.setAttribute("visibility", "hidden");
+      imbalanceTextLayer.setAttribute("visibility", "hidden");
+    }
   };
 
   /**
@@ -574,8 +584,10 @@ export function renderSankey(
   let imbalanceOn = false;
   const highlightImbalance = (on: boolean) => {
     imbalanceOn = on;
-    for (const layer of [imbalanceLayer, imbalanceTextLayer])
+    for (const layer of [imbalanceLayer, imbalanceTextLayer]) {
       while (layer.firstChild) layer.removeChild(layer.firstChild);
+      layer.removeAttribute("visibility");
+    }
     linkEls.forEach((p) =>
       p.setAttribute("stroke-opacity", String(on ? LINK_OPACITY_FADED * 1.6 : LINK_OPACITY))
     );
@@ -779,7 +791,8 @@ export function renderSankey(
     });
   }
 
-  const moveNodeTo = (n: SankeyNode, x0: number, y0: number) => {
+  /** Moves a box. `dragging`: mid-drag, so skip the imbalance markers (see place). */
+  const moveNodeTo = (n: SankeyNode, x0: number, y0: number, dragging = false) => {
     const w = n.x1 - n.x0;
     const h = n.y1 - n.y0;
     n.x0 = Math.min(Math.max(0, x0), Math.max(0, layout.width - w));
@@ -787,7 +800,7 @@ export function renderSankey(
     n.y0 = Math.min(Math.max(0, y0), Math.max(0, layout.height - h));
     n.y1 = n.y0 + h;
     updateLinkPositions(layout.nodes);
-    place();
+    place(!dragging);
   };
 
   // Dotted guide lines with a snap point on each aligned node.
@@ -908,7 +921,7 @@ export function renderSankey(
       const pos = free
         ? { x0: start.x0 + dx, y0: start.y0 + dy }
         : snapPosition(n, layout, start.x0 + dx, start.y0 + dy);
-      moveNodeTo(n, pos.x0, pos.y0);
+      moveNodeTo(n, pos.x0, pos.y0, true);
       drawGuides(findGuides(n, layout));
     });
     const endDrag = (e: PointerEvent, cancelled: boolean) => {
@@ -919,6 +932,8 @@ export function renderSankey(
       hit.style.cursor = "grab";
       clearGuides();
       if (hit.hasPointerCapture(e.pointerId)) hit.releasePointerCapture(e.pointerId);
+      // The markers were hidden during the drag: put them back around the new place.
+      if (moved && imbalanceOn) highlightImbalance(true);
       if (moved) ui.onNodeMoved(n, layout);
       else if (!cancelled) ui.onNodeSelect(n);
     };
