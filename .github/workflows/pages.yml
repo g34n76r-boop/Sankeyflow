@@ -1,5 +1,5 @@
 # Builds the add-in and publishes dist/ to GitHub Pages
-# (https://g34n76r.github.io/SankeyFlow/), which the production manifest points to.
+# (https://g34n76r-boop.github.io/SankeyFlow/), which the production manifest points to.
 name: Deploy to GitHub Pages
 
 on:

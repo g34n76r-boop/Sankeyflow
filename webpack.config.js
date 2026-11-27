@@ -6,7 +6,7 @@ const HtmlWebpackPlugin = require("html-webpack-plugin");
 
 const urlDev = "https://localhost:3000/";
 // Production builds are served from GitHub Pages; the manifest's localhost URLs are rewritten to this.
-const urlProd = "https://g34n76r.github.io/SankeyFlow/";
+const urlProd = "https://g34n76r-boop.github.io/SankeyFlow/";
 
 async function getHttpsOptions() {
   const httpsOptions = await devCerts.getHttpsServerOptions();

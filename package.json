@@ -3,13 +3,13 @@
   "version": "0.0.1",
   "description": "Excel add-in that draws Sankey diagrams from workbook data.",
   "author": "G34N76R",
-  "homepage": "https://github.com/G34N76R/SankeyFlow#readme",
+  "homepage": "https://github.com/g34n76r-boop/SankeyFlow#readme",
   "bugs": {
-    "url": "https://github.com/G34N76R/SankeyFlow/issues"
+    "url": "https://github.com/g34n76r-boop/SankeyFlow/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/G34N76R/SankeyFlow.git"
+    "url": "https://github.com/g34n76r-boop/SankeyFlow.git"
   },
   "license": "MIT",
   "config": {

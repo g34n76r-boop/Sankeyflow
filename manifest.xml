@@ -8,7 +8,7 @@
   <Description DefaultValue="Draw Sankey diagrams from your workbook data."/>
   <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-64.png"/>
-  <SupportUrl DefaultValue="https://github.com/G34N76R/SankeyFlow"/>
+  <SupportUrl DefaultValue="https://github.com/g34n76r-boop/SankeyFlow"/>
   <AppDomains>
     <AppDomain>https://github.com</AppDomain>
   </AppDomains>
