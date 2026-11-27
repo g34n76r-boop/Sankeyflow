@@ -1,0 +1,2142 @@
+:root {
+    --surface: #fcfcfb;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --border: rgba(11, 11, 11, 0.12);
+    --accent: #0f6cbd;
+    --accent-hover: #115ea3;
+    --accent-ink: #ffffff;
+    --btn-bg: #ffffff;
+    --btn-hover: #f0efec;
+    --error-bg: #fdf3f3;
+    --error-ink: #b10e1c;
+    --info-bg: #eef5fd;
+    --info-ink: #0e4775;
+    --tooltip-bg: #ffffff;
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+    /* Differences: dark enough to read as small text on light backgrounds. */
+    --positive: #0b7a3e;
+    --negative: #c4002f;
+    /* Red buttons (Close current chart, confirm boxes): a muted brick red. */
+    --danger: #b04a4e;
+    --danger-ink: #ffffff;
+    /* Green button (Insert chart into sheet): Excel's green with white text. */
+    --success: #107c41;
+    --success-hover: #0c5f32;
+    --success-ink: #ffffff;
+    /* Amber notice (unaccounted-for values). */
+    --warning-bg: #fef3c7;
+    --warning-border: #f2c94c;
+    --warning-ink: #7a4a00;
+    /* Chart toolbar: a soft cool-grey bar, apart from the chart and the page. */
+    --toolbar-bg: #e9ebee;
+    --toolbar-border: rgba(30, 40, 55, 0.15);
+    --toolbar-hover: #d9dde2;
+    --toolbar-icon: #3d3c39; /* the one colour for every toolbar icon */
+    color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+    --surface: #1a1a19;
+    --page: #0d0d0d;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --border: rgba(255, 255, 255, 0.14);
+    --accent: #479ef5;
+    --accent-hover: #62abf5;
+    --accent-ink: #0b0b0b;
+    --btn-bg: #262625;
+    --btn-hover: #333331;
+    --error-bg: #3b1416;
+    --error-ink: #f1a5ab;
+    --info-bg: #132a40;
+    --info-ink: #a9d3f5;
+    --tooltip-bg: #262625;
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    /* Lighter shades that stay readable on the dark background. */
+    --positive: #4ccf86;
+    --negative: #ff6b81;
+    --danger: #9e4a4e;
+    --danger-ink: #ffffff;
+    /* Lighter green with dark text, like the blue button in dark mode. */
+    --success: #3fbf75;
+    --success-hover: #5fd08e;
+    --success-ink: #0b0b0b;
+    --warning-bg: #3a2a05;
+    --warning-border: #7a5a12;
+    --warning-ink: #fbd38d;
+    --toolbar-bg: #24272b;
+    --toolbar-border: rgba(190, 200, 215, 0.16);
+    --toolbar-hover: #32363c;
+    --toolbar-icon: #d6d5cd;
+    color-scheme: dark;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+main,
+.notice {
+    padding: 16px;
+    /* Double margin on the right. */
+    padding-right: 32px;
+}
+
+h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+h2 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.hint {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+}
+
+.pane-header {
+    margin-bottom: 14px;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+/* The summary table and the alert under it, as one block as wide as the table. */
+.summary-block {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    max-width: 100%;
+}
+
+/* Amber "unaccounted for" message under the summary table. */
+.imbalance-msg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 4px 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--warning-border);
+    background: var(--warning-bg);
+    color: var(--warning-ink);
+    font-size: 12px;
+}
+
+/* The alert on the left and the ⓘ icon on the right, across the table's width. */
+.imbalance-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    /* On the tabs' row, on the right; excel.ts sets min-width to the summary
+       table's width so the two line up. */
+    grid-area: alert;
+    justify-self: end;
+    align-self: center;
+    width: fit-content;
+    max-width: 100%;
+}
+
+/* Keeps its space but isn't shown, hovered, or reachable with Tab. */
+.imbalance-row.is-invisible,
+.imbalance-msg.is-invisible {
+    visibility: hidden;
+}
+
+/* Round "i" information icon (tooltip explains the alert). */
+.info-icon {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid var(--warning-border);
+    color: var(--warning-ink);
+    background: var(--warning-bg);
+    font: italic 700 11px Georgia, "Times New Roman", serif;
+    cursor: help;
+}
+
+.info-icon:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.imbalance-text {
+    cursor: help;
+    border-radius: 3px;
+}
+
+.imbalance-text:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.imbalance-dismiss {
+    /* Pushed to the right-hand end of the amber box. */
+    margin-left: auto;
+    font: inherit;
+    font-size: 11px;
+    line-height: 1;
+    padding: 3px 5px;
+    border: 0;
+    border-radius: 3px;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.imbalance-dismiss:hover {
+    background: var(--warning-border);
+}
+
+.imbalance-dismiss:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* Summary table differences: green when balanced (0), red when not (the sign is shown too). */
+.diff-balanced {
+    color: var(--positive);
+    font-weight: 600;
+}
+
+.diff-unbalanced {
+    color: var(--negative);
+    font-weight: 600;
+}
+
+/* The summary table with its collapse bar on the left. */
+.summary-with-toggle {
+    display: flex;
+    align-items: stretch; /* the bar is as tall as the table */
+    justify-content: flex-end;
+    gap: 6px;
+    max-width: 100%;
+}
+
+/* Narrow, quiet collapse/expand strip the height of the table: no box, just a
+   muted chevron; a faint tint and the accent colour appear on hover. */
+.stage-toggle {
+    flex: none;
+    width: 12px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.stage-toggle svg {
+    width: 10px;
+    height: 10px;
+}
+
+.stage-toggle:hover {
+    background: var(--btn-hover);
+    color: var(--accent);
+}
+
+.stage-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* The overall Total row at the bottom of the summary table. */
+.stage-summary tfoot td {
+    font-weight: 700;
+    border-top: 1px solid var(--border);
+    padding-top: 4px;
+}
+
+/* One row per account (box with money in and out), under the totals. */
+.stage-summary {
+    display: flex;
+    justify-content: flex-end;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.stage-summary table {
+    /* Fills the summary block, so its edges line up with the alert row below
+       even when that row is the wider of the two. */
+    width: 100%;
+    font-size: 12px;
+}
+
+.stage-summary th,
+.stage-summary td {
+    padding: 2px 0 2px 16px;
+    border-bottom: 0;
+    white-space: nowrap;
+}
+
+.stage-summary th:first-child,
+.stage-summary td:first-child {
+    padding-left: 0;
+}
+
+.stage-summary th {
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.stage-summary td {
+    font-variant-numeric: tabular-nums;
+}
+
+.stage-summary td:first-child {
+    font-weight: 600;
+    max-width: 14em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Top bar: title + load buttons on the left, insert button + summary on the
+   right. On a narrow pane the right side drops below, still right-aligned. */
+/* Narrow pane: title + buttons, then insert + summary, then tabs, stacked.
+   Wide pane: title, buttons and tabs on the left; insert + summary on the
+   right — so the tabs sit right under the buttons with no gap. */
+.top-bar {
+    position: relative; /* for the narrow pane's buttons on the title line */
+    display: grid;
+    /* Narrow pane: title + buttons, then insert + summary, then the tabs with
+       the alert beside them. */
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "left left"
+        "right right"
+        "tabs alert";
+    gap: 8px 24px;
+    margin-bottom: 14px;
+    /* From 800px down to 500px the whole top area (text, buttons, summary)
+       shrinks gradually, to 75%, so its two columns stay side by side instead
+       of stacking. excel.ts sets --top-scale from the pane's width. */
+    zoom: var(--top-scale, 1);
+}
+
+.top-left {
+    grid-area: left;
+}
+
+.top-bar > .tabs {
+    grid-area: tabs;
+    align-self: start;
+    margin-bottom: 0;
+}
+
+/* Side by side from the 500px minimum width up (the top area shrinks to fit;
+   the stacked layout is only a fallback below the minimum). */
+@media (min-width: 500px) {
+    /* Wide pane: title + buttons beside insert + summary; then one row with
+       the tabs on the left and the alert (under the table) on the right. */
+    .top-bar {
+        grid-template-areas:
+            "left right"
+            "tabs alert";
+        row-gap: 10px;
+    }
+
+    .top-bar > .tabs {
+        align-self: end;
+    }
+}
+
+.top-left .pane-header {
+    margin-bottom: 6px;
+}
+
+/* "Pick a workbook table…" sits a little lower under the title (the controls
+   below stay where they were: 4px more above, 4px less below). */
+.top-left .pane-header .hint {
+    margin-top: 8px;
+}
+
+.top-left .actions {
+    margin-bottom: 0;
+    /* Extra space between the [table ▾ ↻] and [Load selected cells ↻] groups,
+       whether they sit side by side or wrap onto two lines. */
+    gap: 12px 16px;
+}
+
+/* Light/dark toggle on the left, Insert on the right, spread across the width
+   of the summary block below (collapse bar included). */
+.top-right-buttons {
+    display: flex;
+    gap: 8px;
+    /* Centred on the SankeyFlow title. */
+    margin-top: -2px;
+}
+
+/* Light/dark on the left; Insert and ✕ together on the right. */
+.top-right-buttons .theme-toggle {
+    margin-right: auto;
+}
+
+/* Narrow pane: the light/dark and Insert buttons stay up on the SankeyFlow
+   title line (top right) instead of dropping below the load buttons; the
+   summary still comes after the load buttons. */
+@media (max-width: 499.98px) {
+    .top-right-buttons {
+        position: absolute;
+        top: 0;
+        right: 0;
+    }
+
+    .top-left .pane-header h1 {
+        /* Keep the title clear of the buttons. */
+        padding-right: 290px;
+    }
+}
+
+/* Before any data is loaded there's no summary to make room for: the buttons
+   sit on the title line (top right) and the hint text and load controls below
+   use the full width, passing underneath them. */
+.top-bar.no-data .top-right-buttons {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+.top-bar.no-data .top-left,
+.top-bar.no-data > .tabs {
+    /* The tab line runs the full width too: no alert can show without data. */
+    grid-column: 1 / -1;
+}
+
+.top-bar.no-data .top-left .pane-header h1 {
+    /* Keep the title clear of the buttons. */
+    padding-right: 290px;
+}
+
+/* Light/dark toggle: a square icon button. */
+.theme-toggle {
+    width: 34px;
+    padding: 4px 0;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.theme-toggle .sun-icon {
+    display: block;
+    margin: 0 auto;
+}
+
+/* No data: the Insert button is hidden, so nothing stretches the toggle to
+   its height; size it explicitly so it stays square. */
+.top-bar.no-data .theme-toggle {
+    box-sizing: border-box;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+}
+
+.top-right {
+    grid-area: right;
+    justify-self: end;
+    display: flex;
+    flex-direction: column;
+    /* Children take the column's width (the wider of the buttons and the summary). */
+    align-items: stretch;
+    gap: 8px;
+    max-width: 100%;
+}
+
+.btn {
+    font: inherit;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+    background: var(--btn-hover);
+}
+
+.btn:focus-visible,
+select:focus-visible,
+input:focus-visible,
+summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+}
+
+.btn.primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+}
+
+.btn.success {
+    background: var(--success);
+    border-color: var(--success);
+    color: var(--success-ink);
+}
+
+.btn.success:hover:not(:disabled) {
+    background: var(--success-hover);
+    border-color: var(--success-hover);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.status {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    background: var(--info-bg);
+    color: var(--info-ink);
+}
+
+#status-text {
+    flex: 1;
+    min-width: 0;
+}
+
+/* The × that dismisses the message. */
+.status-dismiss {
+    flex: none;
+    font: inherit;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 4px;
+    margin: -1px -4px 0 0;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    opacity: 0.7;
+    cursor: pointer;
+}
+
+.status-dismiss:hover {
+    opacity: 1;
+}
+
+.status-dismiss:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 1px;
+    opacity: 1;
+}
+
+.status.error {
+    background: var(--error-bg);
+    color: var(--error-ink);
+}
+
+/* ---------- Tabs ---------- */
+
+.tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 14px;
+}
+
+.tab {
+    font: inherit;
+    font-weight: 600;
+    padding: 8px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.tab:hover {
+    color: var(--text-primary);
+}
+
+.tab[aria-selected="true"] {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent);
+}
+
+/* Memory sits apart from Chart and Data, at the right-hand end of the tab bar. */
+#tab-memory {
+    margin-left: auto;
+}
+
+/* Memory tab while nothing is loaded and there are saved charts to open: green. */
+.tab.has-saved {
+    background: var(--success);
+    color: var(--success-ink);
+    border-radius: 4px 4px 0 0;
+}
+
+.tab.has-saved:hover {
+    background: var(--success-hover);
+    color: var(--success-ink);
+}
+
+.tab.has-saved[aria-selected="true"] {
+    border-bottom-color: var(--success-hover);
+}
+
+.tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: 4px 4px 0 0;
+}
+
+/* Data tab: sample data, above the flows table. */
+.sample-section {
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.sample-section h2 {
+    margin: 0 0 8px;
+    font-size: 15px;
+}
+
+.sample-section .fine {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* A link-style button inside a sentence (e.g. "…under the Data tab."). */
+.link-btn.inline-link {
+    font-size: inherit;
+    padding: 0;
+    text-decoration: underline;
+}
+
+.table-view h2 {
+    margin: 0 0 6px;
+    font-size: 15px;
+}
+
+/* ---------- Workbook table picker (in the top button row) ---------- */
+
+/* The dropdown and its ↻ button stay together when the row wraps. */
+.picker {
+    display: inline-flex;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.picker select {
+    /* 18em wide (double its old size); shrinks on a narrow pane, but not below 9em. */
+    flex: 0 1 18em;
+    width: 18em;
+    min-width: 9em;
+    padding: 5px 6px;
+}
+
+.icon-btn {
+    padding: 4px 10px;
+    line-height: 1.2;
+}
+
+.clear-wrap {
+    position: relative;
+    display: flex;
+}
+
+/* Once data is loaded: [✕ Close] [💾 Save] [↻] replace the data choices. */
+#loaded-actions {
+    align-items: stretch;
+    gap: 8px;
+}
+
+/* An icon to the left of a button's label. */
+#clear-btn,
+#save-btn,
+#refresh-btn,
+#tables-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* The 20px refresh icon: less padding so the button stays the height of its neighbours. */
+#refresh-btn,
+#tables-refresh {
+    padding: 2px 7px;
+}
+
+.btn-icon {
+    flex: none;
+}
+
+/* "Saved ✓": nothing to save, so it reads as a state rather than a faded button. */
+#save-btn.is-saved:disabled {
+    opacity: 1;
+    background: var(--btn-bg);
+    border-color: var(--border);
+    color: var(--positive);
+}
+
+/* Under a button on the left of the pane: opens to the right. */
+.confirm-pop.confirm-left {
+    left: 0;
+    right: auto;
+    width: 300px;
+}
+
+/* "Clear the loaded data?" box, under the ✕ and right-aligned with it. */
+.confirm-pop {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 50;
+    width: 260px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    font-size: 12px;
+    text-align: left;
+}
+
+.confirm-title {
+    margin: 0 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.confirm-text {
+    margin: 0 0 10px;
+    line-height: 1.4;
+}
+
+.confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* ---------- Memory tab ---------- */
+
+.memory-view h2 {
+    margin: 0 0 6px;
+    font-size: 15px;
+}
+
+.memory-empty {
+    margin-top: 12px;
+}
+
+.memory-list {
+    list-style: none;
+    margin: 14px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* One saved diagram: name (editable), its data, a line of facts, [Open] [Forget]. */
+.memory-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.memory-card.is-open {
+    border-color: var(--accent);
+}
+
+.memory-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.memory-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 600;
+}
+
+.memory-badge {
+    flex: none;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.memory-source {
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+.memory-missing {
+    color: var(--negative);
+    font-weight: 600;
+}
+
+.memory-facts {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.memory-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.memory-actions .btn {
+    padding: 4px 12px;
+}
+
+.memory-actions .confirm-pop {
+    left: 0;
+    right: auto;
+}
+
+.confirm-actions .btn {
+    padding: 4px 12px;
+}
+
+.btn.danger {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--danger-ink);
+}
+
+.btn.danger:hover:not(:disabled) {
+    background: var(--danger);
+    filter: brightness(0.92);
+}
+
+.table-summary {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Preview of the example data (Chart tab, before anything is loaded). */
+.preview-caption {
+    margin: 10px 0 6px;
+    font-size: 12px;
+}
+
+.example-preview {
+    pointer-events: none; /* a picture, not something to interact with */
+}
+
+/* "Getting started" (example table + preview) in the Chart tab's empty state. */
+/* First thing under the tabs, which already have a line under them
+   (".customize." so it wins over the general section border). */
+.customize.getting-started {
+    margin-top: 4px;
+    border-top: 0;
+    padding-top: 0;
+}
+
+.getting-started[open] > summary {
+    margin-bottom: 8px;
+}
+
+.getting-started-note {
+    margin: 0 0 8px;
+}
+
+.empty p {
+    margin: 0 0 8px;
+    color: var(--text-secondary);
+}
+
+.empty .fine {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+th {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+td.num,
+th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Data tab: where value is unaccounted for, in amber. */
+.data-gaps {
+    margin-top: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--warning-border);
+    border-radius: 4px;
+    background: var(--warning-bg);
+    color: var(--warning-ink);
+    font-size: 12px;
+}
+
+.data-gaps ul {
+    margin: 4px 0 0;
+    padding-left: 18px;
+}
+
+/* A box's name wherever it appears in the flows table, when its in and out differ. */
+#flow-table td.gap-name {
+    color: var(--warning-ink);
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--warning-border);
+}
+
+/* The missing value, as a placeholder flow after the box's other flows. */
+#flow-table tr.gap-row td {
+    background: var(--warning-bg);
+    color: var(--warning-ink);
+    font-style: italic;
+    border-top: 1px dashed var(--warning-border);
+    border-bottom: 1px dashed var(--warning-border);
+}
+
+.example {
+    margin-bottom: 12px;
+    background: var(--surface);
+}
+
+.chart-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+/* ---------- Minimum pane width ----------
+   Below 620px the controls get cramped (the chart toolbar can't fit on one row
+   with its labels in full; it needs about 560px plus the page's 48px side
+   padding and room for a scrollbar), so an overlay asks for a wider pane
+   instead. Office doesn't let add-ins set the pane's width themselves. */
+.narrow-overlay {
+    display: none;
+}
+
+@media (max-width: 619.98px) {
+    .narrow-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        background: var(--page);
+    }
+
+    /* Nothing behind the overlay can be seen, clicked or focused. (The page
+       keeps its scrollbar: hiding it would widen the page past 620px and
+       make the overlay flicker on and off right at the limit.) */
+    #app-body {
+        visibility: hidden;
+    }
+}
+
+.narrow-card {
+    max-width: 260px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.narrow-card svg {
+    color: var(--accent);
+}
+
+.narrow-card h2 {
+    margin: 10px 0 6px;
+    font-size: 16px;
+    color: var(--text-primary);
+}
+
+.narrow-card p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+/* Holds the toolbar, the chart below it, and the settings-only note. */
+.chart-frame {
+    position: relative;
+    margin-bottom: 12px;
+}
+
+.chart {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    /* The chart is scaled to fit; it scrolls only when zoomed in (or the
+       preview is made shorter with the height bar). */
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* A small gap on the right and bottom, so the chart's dotted edges stand clear
+   of the preview's border (CHART_EDGE_GAP in excel.ts). */
+#chart {
+    padding: 0 var(--chart-edge-gap) var(--chart-edge-gap) 0;
+    --chart-edge-gap: 10px;
+}
+
+/* Height bar, like a scroll-bar thumb, on the preview's bottom edge (or just
+   above its horizontal scroll bar): drag it to change the preview's height. */
+.chart-size-bar {
+    position: absolute;
+    z-index: 3;
+    box-sizing: border-box;
+    border-radius: 999px;
+    background: var(--text-muted);
+    opacity: 0.45;
+    touch-action: none;
+    transition: opacity 0.15s, background-color 0.15s;
+}
+
+.chart-size-bar-height {
+    width: 44px;
+    height: 8px;
+    cursor: ns-resize;
+}
+
+.chart-frame:hover .chart-size-bar {
+    opacity: 0.7;
+}
+
+.chart-size-bar:hover,
+.chart-size-bar:focus-visible,
+.chart-size-bar.dragging {
+    opacity: 1;
+    background: var(--accent);
+}
+
+.chart-size-bar:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.popped-out .chart-size-bar {
+    display: none;
+}
+
+/* Pop-out, size and zoom: a slim toolbar row just above the chart; the icons
+   are faint, and clearer on hover or keyboard focus. */
+.chart-tools {
+    position: relative;
+    z-index: 5; /* above the chart and height bar, so the size menu covers them */
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap; /* always one row; the dropdowns shrink instead */
+    gap: 2px;
+    margin-bottom: 4px;
+    padding: 2px 4px;
+    background: var(--toolbar-bg);
+    border: 1px solid var(--toolbar-border);
+    border-radius: 6px;
+}
+
+/* Toolbar icons and zoom %: stronger than the old faint corner icons. They keep
+   their size; only the dropdowns shrink. */
+.chart-tools .chart-tool,
+.chart-tools .zoom-level,
+.chart-tools .size-menu-wrap {
+    flex: none;
+}
+
+/* Every icon on the toolbar is one colour (hover and the open menu show as a
+   background or outline, not a colour change). */
+.chart-tools .chart-tool,
+.chart-tools .zoom-level,
+.chart-tools .icon-select-btn,
+.icon-select-item {
+    color: var(--toolbar-icon);
+    opacity: 1;
+}
+
+/* Everything on the toolbar is 20% larger than the base sizes (22px buttons,
+   14px / 16px icons, 11–12px text). */
+.chart-tools .chart-tool {
+    width: 26px;
+    height: 26px;
+}
+
+/* Shown at their drawn size (20px grid, like the dropdown icons): no scaling,
+   so they stay sharp. */
+.chart-tools .chart-tool svg {
+    width: 20px;
+    height: 20px;
+}
+
+.chart-tools .zoom-level {
+    font-size: 13px;
+}
+
+/* The options on the toolbar, after a thin divider: a text label, then a small
+   icon dropdown (iconSelect.ts). All on one row and never squeezed: below the
+   width that needs, the "needs more room" overlay covers the pane instead. */
+.toolbar-fields {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    margin-left: 5px;
+    padding: 2px 0 2px 10px;
+    border-left: 1px solid var(--toolbar-border);
+    font-size: 14px;
+}
+
+.toolbar-fields .field {
+    flex: none;
+    gap: 3px;
+}
+
+.toolbar-fields .field > label {
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+/* The dropdown button: the chosen option's icon and a small caret. */
+.icon-select {
+    position: relative;
+    flex: none;
+    display: flex;
+}
+
+.icon-select-btn {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    height: 26px;
+    padding: 0 3px 0 4px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--btn-bg);
+    cursor: pointer;
+}
+
+/* Shown at their drawn size (20px grid, 10px caret): no scaling, so they stay sharp. */
+.icon-select-btn > svg:not(.icon-select-caret) {
+    width: 20px;
+    height: 20px;
+}
+
+.icon-select-btn .icon-select-caret {
+    width: 10px;
+    height: 10px;
+}
+
+.icon-select-btn:hover,
+.icon-select-btn.active {
+    border-color: var(--accent);
+    background: var(--toolbar-hover);
+}
+
+.icon-select-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.icon-select-btn svg,
+.icon-select-item svg {
+    display: block;
+}
+
+.icon-select-caret {
+    opacity: 0.6;
+}
+
+/* The menu: each option as its icon with its name beside it, one under another. */
+.icon-select-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+}
+
+.icon-select-menu.align-right {
+    left: auto;
+    right: 0;
+}
+
+.icon-select-menu[hidden] {
+    display: none;
+}
+
+.icon-select-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 31px;
+    padding: 0 10px 0 6px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    font: inherit;
+    font-size: 14px;
+    white-space: nowrap;
+    text-align: left;
+    cursor: pointer;
+}
+
+.icon-select-item svg {
+    flex: none;
+    width: 20px;
+    height: 20px;
+}
+
+.icon-select-text {
+    color: var(--text-primary);
+}
+
+.icon-select-item:hover,
+.icon-select-item:focus-visible {
+    background: var(--toolbar-hover);
+    outline: none;
+}
+
+.icon-select-item.selected {
+    border-color: var(--accent);
+}
+
+.toolbar-fields input[type="color"] {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+}
+
+.chart-frame:hover .chart-tools .chart-tool:not(:disabled),
+.chart-frame:hover .chart-tools .zoom-level {
+    opacity: 1;
+}
+
+.chart-tools .chart-tool:hover:not(:disabled),
+.chart-tools .chart-tool:focus-visible {
+    background: var(--toolbar-hover);
+    color: var(--toolbar-icon);
+}
+
+.chart-tool {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    opacity: 0.55;
+    cursor: pointer;
+    transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.chart-frame:hover .chart-tool:not(:disabled) {
+    opacity: 0.8;
+}
+
+.chart-tool:hover:not(:disabled),
+.chart-tool:focus-visible {
+    opacity: 1;
+    background: var(--btn-hover);
+    color: var(--accent);
+}
+
+.chart-tool:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* At the most zoomed in (or out): fainter still, and not clickable. */
+.chart-tool:disabled,
+.chart-frame:hover .chart-tool:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+.chart-tool svg {
+    display: block;
+}
+
+/* Current zoom, to the right of the zoom buttons. Faint like them. */
+.zoom-level {
+    align-self: center;
+    min-width: 3.2em; /* room for "250%" so the row doesn't shift as it changes */
+    padding-left: 2px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity 0.15s;
+}
+
+.chart-frame:hover .zoom-level {
+    opacity: 0.8;
+}
+
+/* Settings-only mode (chart in its own window): a slim note in place of the chart. */
+.popout-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 10px 12px;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+/* Popped out: the chart and its whole toolbar go; the toolbar is in the window. */
+.popped-out #chart,
+.popped-out .chart-tools {
+    display: none;
+}
+
+/* "Transparent" background: a light checkerboard shows through the chart. */
+.chart.transparent-bg {
+    background-color: #ffffff;
+    background-image: conic-gradient(#e6e6e6 25%, transparent 0 50%, #e6e6e6 0 75%, transparent 0);
+    background-size: 16px 16px;
+}
+
+.chart svg {
+    display: block;
+    touch-action: none; /* let touch drags move nodes instead of scrolling */
+    user-select: none;
+}
+
+/* The example preview: a dotted line on its right and bottom edges only. */
+.example-preview svg {
+    box-sizing: border-box;
+    border-right: 1px dotted rgba(128, 128, 128, 0.7);
+    border-bottom: 1px dotted rgba(128, 128, 128, 0.7);
+}
+
+/* Dotted lines along the chart's right and bottom edges, so its size is clear
+   (especially zoomed out). Hover one for that dimension; click it to change it
+   (chartEdges.ts). Drawn inside the edge so the scroll box doesn't clip them;
+   CSS only, so they aren't part of the chart inserted into the sheet. */
+.chart-edges {
+    position: relative;
+    width: max-content;
+}
+
+.chart-edge {
+    position: absolute;
+    z-index: 2;
+    cursor: pointer;
+    outline: none;
+}
+
+/* A strip a few px wide (easy to hover) with the dotted line on its outer side. */
+.chart-edge-right {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 7px;
+    border-right: 1px dotted rgba(128, 128, 128, 0.7);
+}
+
+.chart-edge-bottom {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 7px;
+    border-bottom: 1px dotted rgba(128, 128, 128, 0.7);
+}
+
+.chart-edge:hover,
+.chart-edge:focus-visible,
+.chart-edge.active {
+    border-color: var(--accent);
+    border-right-style: solid;
+    border-bottom-style: solid;
+}
+
+.chart-edge-right:hover,
+.chart-edge-right:focus-visible,
+.chart-edge-right.active {
+    border-right-width: 2px;
+}
+
+.chart-edge-bottom:hover,
+.chart-edge-bottom:focus-visible,
+.chart-edge-bottom.active {
+    border-bottom-width: 2px;
+}
+
+.chart-edge-label,
+.chart-edge-pop {
+    position: fixed;
+    z-index: 20;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-primary);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.chart-edge-label {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.chart-edge-pop {
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.chart-edge-pop-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.chart-edge-input {
+    width: 7em;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text-primary);
+    font: inherit;
+}
+
+.chart-edge-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+}
+
+.chart-edge-pop-unit,
+.chart-edge-pop-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.chart-edge-pop-hint {
+    margin-top: 5px;
+}
+
+.chart svg rect[role="button"]:focus-visible {
+    stroke: var(--accent);
+    stroke-width: 2;
+}
+
+.tt-hint {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* ---------- Customize ---------- */
+
+.customize {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-bottom: 14px;
+}
+
+.customize-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.customize h2 {
+    margin: 0;
+    font-size: 15px;
+}
+
+/* Collapsible sections (Customize, Labels): the heading is the toggle. */
+.section-details > summary {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    cursor: pointer;
+    list-style: none;
+    padding: 2px 0;
+}
+
+.section-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.section-details > summary::before {
+    content: "▸";
+    display: inline-block;
+    width: 1em;
+    color: var(--text-secondary);
+    transition: transform 0.15s;
+}
+
+.section-details[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.section-details > summary h2 {
+    display: inline;
+}
+
+.section-details > summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.summary-note {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.title-grid {
+    margin-top: 8px;
+}
+
+.section-actions {
+    justify-content: flex-end;
+    margin-top: 4px;
+}
+
+.section-details:not([open]) {
+    margin-bottom: 8px;
+}
+
+.customize .hint {
+    margin: 4px 0 10px;
+    font-size: 12px;
+}
+
+kbd {
+    font: inherit;
+    font-size: 11px;
+    padding: 0 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--btn-bg);
+}
+
+.link-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.link-btn {
+    font: inherit;
+    font-size: 12px;
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    cursor: pointer;
+}
+
+.link-btn:hover:not(:disabled) {
+    text-decoration: underline;
+}
+
+.link-btn:disabled {
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.color-editor {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+}
+
+.editor-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid var(--surface);
+    box-shadow: 0 0 0 1px var(--border);
+    padding: 0;
+    cursor: pointer;
+}
+
+.editor-note {
+    margin: -4px 0 4px;
+}
+
+.swatch[aria-checked="true"] {
+    box-shadow: 0 0 0 2px var(--text-primary);
+}
+
+.swatch:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.editor-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+}
+
+input[type="color"] {
+    width: 36px;
+    height: 26px;
+    padding: 0 2px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--btn-bg);
+    cursor: pointer;
+}
+
+.dot {
+    display: inline-block;
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.node-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 220px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+}
+
+.node-list button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    font: inherit;
+    text-align: left;
+    padding: 6px 10px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: none;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.node-list li:last-child button {
+    border-bottom: 0;
+}
+
+.node-list button:hover {
+    background: var(--btn-hover);
+}
+
+.node-list button[aria-current="true"] {
+    background: var(--info-bg);
+    font-weight: 600;
+}
+
+.editor-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin: 10px 0 6px;
+}
+
+.editor-title + .editor-label {
+    margin-top: 0;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px 12px;
+    margin-bottom: 8px;
+}
+
+.form-grid > label,
+.form-grid > span {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.form-grid select {
+    max-width: 100%;
+}
+
+.inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+.text-input,
+.num-input {
+    font: inherit;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--text-primary);
+    min-width: 0;
+}
+
+.text-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.text-input.short {
+    width: 5.5em;
+}
+
+.num-input {
+    width: 4em;
+}
+
+.text-input:focus-visible,
+.num-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.muted {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.chip {
+    font: inherit;
+    font-size: 12px;
+    min-width: 28px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.chip:hover {
+    background: var(--btn-hover);
+}
+
+.chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.preview {
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.node-list .tag {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.tooltip {
+    position: absolute;
+    z-index: 3; /* above the chart's dotted edges */
+    pointer-events: none;
+    background: var(--tooltip-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    padding: 6px 10px;
+    font-size: 12px;
+    max-width: 200px;
+    z-index: 2;
+}
+
+.tt-title {
+    font-weight: 600;
+}
+
+.tt-value {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.tt-sub {
+    color: var(--text-secondary);
+}
+
+.field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Size: [width] × [height] ↺ */
+/* Chart size menu, opened from the dimensions icon in the chart's corner. */
+.size-menu-wrap {
+    position: relative;
+    display: flex;
+}
+
+.chart-frame .chart-tools .chart-tool.active {
+    opacity: 1;
+    background: var(--toolbar-hover);
+    color: var(--toolbar-icon);
+}
+
+.size-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 6;
+    width: 210px;
+    padding: 10px 12px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-primary);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+    font-size: 13px;
+}
+
+.size-menu-title {
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.size-menu-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.size-menu-row > span:first-child {
+    width: 3.5em;
+    color: var(--text-secondary);
+}
+
+.size-menu-input {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--btn-bg);
+    color: var(--text-primary);
+    font: inherit;
+}
+
+.size-menu-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+}
+
+.size-menu-unit {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.size-menu-hint {
+    margin: 4px 0 10px;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.size-menu-auto {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+}
+
+.size-menu-auto:hover:not(:disabled) {
+    background: var(--btn-hover);
+}
+
+.size-menu-auto:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.scheme-hint {
+    margin: -4px 0 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.scheme-hint p {
+    margin: 4px 0 0;
+}
+
+.group-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+}
+
+.group-legend .legend-item {
+    white-space: nowrap;
+}
+
+.group-legend .legend-dot {
+    margin: 0 4px 0 0;
+}
+
+.group-editor {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+}
+
+.group-editor summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.group-editor[open] summary {
+    margin-bottom: 8px;
+}
+
+.colour-panel {
+    margin-bottom: 12px;
+}
+
+.colour-panel > .field {
+    margin: 8px 0 6px;
+}
+
+.colour-panel .scheme-hint {
+    margin: 0;
+}
+
+.group-footer {
+    justify-content: space-between;
+    margin-top: 8px;
+}
+
+.group-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* One group: [colour] [name] [Reset ✕] on top, keywords underneath. */
+.group-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.group-card .group-keywords {
+    grid-column: 2 / 4;
+    font-size: 12px;
+}
+
+.group-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-link {
+    font: inherit;
+    font-size: 13px;
+    line-height: 1;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.icon-link:hover {
+    background: var(--btn-hover);
+    color: var(--error-ink);
+}
+
+.icon-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.add-group {
+    margin-top: 8px;
+    font-weight: 600;
+}
+
+.legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin: 0 4px 0 8px;
+    vertical-align: -1px;
+}
+
+.legend-dot:first-child {
+    margin-left: 0;
+}
+
+.field > label,
+.field span {
+    color: var(--text-secondary);
+}
+
+select {
+    font: inherit;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--text-primary);
+}
+
+.check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.table-view summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-weight: 600;
+    padding: 4px 0;
+}
+
+/* The whole flows table is shown; the pane scrolls rather than the table
+   (it only scrolls sideways if a column is too wide for the pane). */
+.table-wrap {
+    overflow-x: auto;
+    margin-top: 6px;
+    background: var(--surface);
+}

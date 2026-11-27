@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SankeyFlow</title>
+
+    <!-- Office JavaScript API -->
+    <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+
+    <link href="taskpane.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body>
+    <!-- Covers the pane when it's narrower than 620px (taskpane.css), where the
+         controls would get cramped and overlap (the chart toolbar needs the room). -->
+    <div class="narrow-overlay" role="alert">
+        <div class="narrow-card">
+            <svg viewBox="0 0 48 24" width="48" height="24" aria-hidden="true" focusable="false">
+                <path d="M2 12h44M2 12l7-7M2 12l7 7M46 12l-7-7M46 12l-7 7" fill="none" stroke="currentColor"
+                      stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h2>Make the task pane wider</h2>
+            <p>SankeyFlow needs a little more room. Drag the left edge of the task pane to the left to widen it.</p>
+        </div>
+    </div>
+    <section id="sideload-msg" class="notice">
+        <h2>Open SankeyFlow from Excel</h2>
+        <p>This page only works inside Excel. <a target="_blank" href="https://learn.microsoft.com/office/dev/add-ins/testing/test-debug-office-add-ins#sideload-an-office-add-in-for-testing">Sideload the add-in</a>, then click <b>Show Task Pane</b> on the Home tab.</p>
+    </section>
+
+    <main id="app-body" hidden>
+        <!-- Top: title and load buttons on the left; insert button and summary on the right. -->
+        <!-- "no-data" until a chart has data: the buttons then sit on the title line and
+             the text and load controls use the full width (excel.ts toggles it). -->
+        <div class="top-bar no-data">
+            <div class="top-left">
+                <header class="pane-header">
+                    <h1>SankeyFlow</h1>
+                    <p id="select-hint" class="hint">Pick a workbook table, or select three columns (<b>Source</b>, <b>Target</b>, <b>Value</b>) and load them. Charts you've saved in this workbook can be opened from the <b>Memory</b> tab.</p>
+                    <!-- Once data is loaded: which diagram this is (excel.ts fills it in). -->
+                    <p id="loaded-info" class="hint" hidden></p>
+                </header>
+
+                <!-- Choosing the data: shown until data is loaded. -->
+                <div id="select-actions" class="actions">
+                    <!-- Workbook table: the chart follows the table as you edit it. -->
+                    <span class="picker">
+                        <select id="table-select" aria-label="Workbook table" title="Draw a workbook table; the chart updates as you edit it">
+                            <option value="">Loading tables…</option>
+                        </select>
+                        <button id="tables-refresh" class="btn icon-btn" type="button" title="Refresh the list of tables" aria-label="Refresh the list of tables"><svg class="btn-icon" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false"><path d="M16 10A6 6 0 1 1 10 4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 0.5 14.5 4 10 7.5Z" fill="currentColor"/></svg></button>
+                    </span>
+                    <span class="picker">
+                        <button id="load-btn" class="btn primary" type="button">Load selected cells</button>
+                    </span>
+                </div>
+
+                <!-- Once data is loaded: these replace the data choices above. -->
+                <div id="loaded-actions" class="actions" hidden>
+                    <span class="clear-wrap">
+                        <button id="clear-btn" class="btn danger" type="button" disabled
+                                title="Close this chart and choose other data"
+                                aria-haspopup="dialog" aria-expanded="false" aria-controls="clear-confirm"><svg class="btn-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg><span>Close</span></button>
+                        <div id="clear-confirm" class="confirm-pop confirm-left" role="alertdialog" aria-modal="false"
+                             aria-labelledby="clear-confirm-title" aria-describedby="clear-confirm-text" hidden>
+                            <p id="clear-confirm-title" class="confirm-title">Clear the loaded data?</p>
+                            <!-- Wording and buttons depend on whether there are unsaved changes (excel.ts). -->
+                            <p id="clear-confirm-text" class="confirm-text"></p>
+                            <div class="confirm-actions">
+                                <button id="clear-cancel" class="btn" type="button">Cancel</button>
+                                <button id="clear-save" class="btn primary" type="button">Save and close</button>
+                                <button id="clear-ok" class="btn danger" type="button">Close</button>
+                            </div>
+                        </div>
+                    </span>
+                    <button id="save-btn" class="btn primary" type="button" disabled
+                            title="Save this chart's data link and settings in the workbook"><svg class="btn-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M1.5 1.5h10l3 3v10h-13z" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/><rect x="4" y="2" width="6" height="4" fill="currentColor" shape-rendering="crispEdges"/><rect x="3.5" y="8.5" width="9" height="6" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges"/></svg><span id="save-label">Save</span></button>
+                    <button id="refresh-btn" class="btn icon-btn" type="button" disabled title="Reload the data (the cells or table you loaded)" aria-label="Reload the data"><svg class="btn-icon" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false"><path d="M16 10A6 6 0 1 1 10 4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 0.5 14.5 4 10 7.5Z" fill="currentColor"/></svg></button>
+                </div>
+                <p id="table-summary" class="table-summary" hidden></p>
+            </div>
+
+            <div class="top-right">
+                <div class="top-right-buttons">
+                    <button id="theme-toggle" class="btn icon-btn theme-toggle" type="button" aria-pressed="false"></button>
+                    <button id="insert-btn" class="btn success" type="button" disabled hidden title="Insert the chart as a picture next to its data">Insert chart into sheet</button>
+                </div>
+
+                <!-- Summary table + alert: the block is as wide as the table, and the alert fills it. -->
+                <div class="summary-block">
+                <div class="summary-with-toggle">
+                <!-- In / out / difference for each account, then the overall total. -->
+                <div id="stage-summary" class="stage-summary" hidden>
+                    <table aria-label="Money in and out">
+                        <thead>
+                            <tr><th scope="col" id="stage-col-head">Account</th><th scope="col" class="num">In</th><th scope="col" class="num">Out</th><th scope="col" class="num" title="In minus out. Not zero when not everything that comes in is passed on (or more goes out than comes in).">Difference</th></tr>
+                        </thead>
+                        <tbody id="stage-rows"></tbody>
+                        <tfoot id="stage-total"></tfoot>
+                    </table>
+                </div>
+                <!-- Collapse bar on the right, as tall as the table; shown when there are more than 4 account rows. -->
+                <button id="stage-toggle" class="stage-toggle" type="button" aria-controls="stage-rows" hidden></button>
+                </div>
+
+                <!-- Shown when any difference isn't zero. Hover (or focus) it to mark the gaps on the chart.
+                     Its space is always kept (invisible when not needed) so nothing below shifts when it appears. -->
+                </div>
+            </div>
+
+            <!-- The tabs, with the alert on the same row (on the right, under the summary table). -->
+            <div class="tabs" role="tablist" aria-label="Views">
+                <button id="tab-chart" class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-chart">Chart</button>
+                <button id="tab-data" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-data" tabindex="-1">Data</button>
+                <button id="tab-memory" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-memory" tabindex="-1">Memory</button>
+            </div>
+
+            <!-- As wide as the summary table (set by excel.ts): the alert on the left, the ⓘ
+                 (explains it; stays after dismissing) on the right. Its space is always kept
+                 so nothing moves when it appears. -->
+            <div id="imbalance-row" class="imbalance-row is-invisible" aria-hidden="true">
+                <div id="imbalance-msg" class="imbalance-msg">
+                    <span class="imbalance-text" tabindex="0" title="Marked in amber on the chart until dismissed">
+                        <span aria-hidden="true">⚠</span> Value is unaccounted for.
+                    </span>
+                    <button id="imbalance-dismiss" class="imbalance-dismiss" type="button" aria-label="Dismiss this message" title="Dismiss">✕</button>
+                </div>
+                <span class="info-icon" tabindex="0" role="img"
+                      aria-label="About this alert: some boxes have a difference — money comes in that isn't passed on, or more goes out than comes in. Hover the message to see where on the chart."
+                      title="Some boxes have a difference: money comes in that isn't passed on, or more goes out than comes in. Hover the message to see where on the chart.">i</span>
+            </div>
+        </div>
+
+        <div id="status" class="status" hidden>
+            <span id="status-text" role="status"></span>
+            <button id="status-dismiss" class="status-dismiss" type="button" title="Dismiss" aria-label="Dismiss message">×</button>
+        </div>
+
+        <div id="panel-chart" class="tab-panel" role="tabpanel" aria-labelledby="tab-chart">
+        <section id="empty-state" class="empty">
+            <details class="customize section-details getting-started" id="getting-started">
+                <summary><h2 id="getting-started-title">Getting started</h2><span class="summary-note">example data &amp; preview</span></summary>
+                <p class="getting-started-note">Your data should look like this. A header row is optional. Sample data is available under the <button id="goto-data-tab" class="link-btn inline-link" type="button">Data tab</button>.</p>
+                <table class="example">
+                    <thead><tr><th>Source</th><th>Target</th><th>Value</th></tr></thead>
+                    <tbody>
+                        <tr><td>Salary</td><td>Budget</td><td>4200</td></tr>
+                        <tr><td>Budget</td><td>Housing</td><td>2000</td></tr>
+                        <tr><td>Budget</td><td>Savings</td><td>2200</td></tr>
+                    </tbody>
+                </table>
+                <!-- The example above drawn with your current style (kept in step by excel.ts). -->
+                <p class="preview-caption">…which draws like this:</p>
+                <div id="example-preview" class="chart example-preview">
+                    <svg id="example-svg" role="img" aria-label="Preview of the example data as a Sankey diagram"></svg>
+                </div>
+            </details>
+        </section>
+
+        <section id="chart-section" hidden>
+            <div class="chart-frame">
+                <!-- Toolbar just above the chart: pop the chart out into its own window,
+                     set its size (a menu), magnify it (+) or shrink it (−), then the
+                     Background / Order / Ends / Links options. -->
+                <div class="chart-tools" role="toolbar" aria-label="Chart tools">
+                    <button id="popout-btn" class="chart-tool" type="button"
+                            title="Pop out the chart into its own window, to see it beside these settings"
+                            aria-label="Pop out the chart into its own window">
+                        <!-- Chart button icons, in the same style as the dropdown icons
+                             (iconSelect.ts): a 20 × 20 grid shown at exactly 20px, solid and
+                             faint blocks on whole pixels and 1px outlines centred on pixels.
+                             Pop out: the chart (faint) with a window lifted off it. -->
+                        <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
+                            <rect x="2" y="7" width="11" height="11" fill="currentColor" opacity="0.4" shape-rendering="crispEdges"/>
+                            <rect x="7.5" y="2.5" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges"/>
+                            <rect x="7" y="2" width="11" height="3" fill="currentColor" shape-rendering="crispEdges"/>
+                        </svg>
+                    </button>
+                    <button id="size-btn" class="chart-tool" type="button"
+                            title="Chart size" aria-label="Chart size">
+                        <!-- The chart (faint) with solid width and height bars beside it. -->
+                        <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
+                            <rect x="6" y="2" width="12" height="12" fill="currentColor" opacity="0.4" shape-rendering="crispEdges"/>
+                            <rect x="6" y="16" width="12" height="2" fill="currentColor" shape-rendering="crispEdges"/>
+                            <rect x="2" y="2" width="2" height="12" fill="currentColor" shape-rendering="crispEdges"/>
+                        </svg>
+                    </button>
+                    <button id="zoom-in-btn" class="chart-tool" type="button" title="Zoom in" aria-label="Zoom in">
+                        <!-- Magnifier: a faint lens with a solid rim and handle; the + is
+                             two 2px blocks on whole pixels. -->
+                        <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
+                            <circle cx="9" cy="9" r="6.25" fill="currentColor" fill-opacity="0.2" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M13.75 13.75 17.5 17.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                            <path d="M6 8h6v2H6zM8 6h2v6H8z" fill="currentColor" shape-rendering="crispEdges"/>
+                        </svg>
+                    </button>
+                    <button id="zoom-out-btn" class="chart-tool" type="button" title="Zoom out" aria-label="Zoom out">
+                        <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
+                            <circle cx="9" cy="9" r="6.25" fill="currentColor" fill-opacity="0.2" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M13.75 13.75 17.5 17.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                            <path d="M6 8h6v2H6z" fill="currentColor" shape-rendering="crispEdges"/>
+                        </svg>
+                    </button>
+                    <span id="zoom-level" class="zoom-level" aria-hidden="true">100%</span>
+                    <!-- The main chart options, after the buttons: a text label, then a small
+                         icon dropdown (iconSelect.ts builds it; the hidden select keeps the value). -->
+                    <div class="toolbar-fields">
+                        <div class="field">
+                            <label for="background-mode">Background</label>
+                            <select id="background-mode">
+                                <option value="auto" selected>Auto</option>
+                                <option value="white">White</option>
+                                <option value="dark">Dark</option>
+                                <option value="transparent">Transparent</option>
+                                <option value="custom">Custom…</option>
+                            </select>
+                            <input type="color" id="background-color" value="#f5f1e8" aria-label="Background color" title="Background color" hidden />
+                        </div>
+                        <div class="field">
+                            <label for="node-order">Order</label>
+                            <select id="node-order">
+                                <option value="data" selected>As in data</option>
+                                <option value="color">Grouped by colour</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="end-align">Ends</label>
+                            <select id="end-align">
+                                <option value="left" selected>Next to source</option>
+                                <option value="justify">Far right</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="link-color">Links</label>
+                            <select id="link-color">
+                                <option value="source">By source</option>
+                                <option value="target" selected>By target</option>
+                                <option value="neutral">Neutral</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div id="chart" class="chart">
+                    <svg id="sankey-svg" role="img" aria-label="Sankey diagram"></svg>
+                    <div id="tooltip" class="tooltip" hidden></div>
+                </div>
+                <!-- Settings-only mode: shown in place of the chart while it's in its own window. -->
+                <div id="popout-placeholder" class="popout-placeholder" hidden>
+                    <span>The chart is open in its own window. Changes you make here update it.</span>
+                    <button id="popout-return" class="btn" type="button">Bring the chart back here</button>
+                </div>
+            </div>
+
+            <details class="customize section-details" id="title-section">
+                <summary><h2 id="title-title">Title</h2><span id="title-note" class="summary-note">None</span></summary>
+                <div class="form-grid title-grid">
+                    <label for="title-text">Title</label>
+                    <input type="text" id="title-text" class="text-input" placeholder="e.g. Monthly budget" maxlength="120" autocomplete="off" />
+
+                    <label for="subtitle-text">Subtitle</label>
+                    <input type="text" id="subtitle-text" class="text-input" placeholder="Optional" maxlength="160" autocomplete="off" />
+
+                    <label for="title-font">Font</label>
+                    <!-- "Same as labels" plus the label font choices; filled in by excel.ts -->
+                    <select id="title-font"></select>
+
+                    <label for="title-size">Size</label>
+                    <div class="inline">
+                        <input type="number" id="title-size" class="num-input" min="12" max="40" step="1" value="20" />
+                        <span class="muted">px</span>
+                        <label class="check"><input type="checkbox" id="title-bold" checked /> <span>Bold</span></label>
+                        <label class="check"><input type="checkbox" id="title-italic" /> <span>Italic</span></label>
+                    </div>
+
+                    <label for="subtitle-size">Subtitle size</label>
+                    <div class="inline">
+                        <input type="number" id="subtitle-size" class="num-input" min="9" max="32" step="1" placeholder="Auto" />
+                        <span class="muted">px (blank = automatic)</span>
+                    </div>
+
+                    <label for="title-align">Alignment</label>
+                    <select id="title-align">
+                        <option value="left">Left</option>
+                        <option value="center">Centre</option>
+                        <option value="right">Right</option>
+                    </select>
+
+                    <span>Colour</span>
+                    <div class="inline">
+                        <input type="color" id="title-color" aria-label="Title colour" title="Title colour" />
+                        <button id="title-color-auto" class="link-btn" type="button">Auto colour</button>
+                    </div>
+                </div>
+                <div class="link-actions section-actions">
+                    <button id="remove-title-btn" class="link-btn" type="button">Remove title</button>
+                </div>
+            </details>
+
+            <details class="customize section-details colour-panel" id="colours-section">
+                <summary><h2 id="colours-title">Style</h2><span id="colours-note" class="summary-note"></span></summary>
+                <label class="field">
+                    <span>Colour theme</span>
+                    <!-- Options (Money flow themes + Palette) are added by excel.ts -->
+                    <select id="color-scheme"></select>
+                </label>
+                <div id="scheme-hint" class="scheme-hint">
+                    <div id="group-legend" class="group-legend"></div>
+                    <!-- Filled in by excel.ts for the chosen theme. -->
+                    <p id="scheme-hint-text"></p>
+
+                    <details class="group-editor" id="group-editor">
+                        <summary>Edit groups</summary>
+                        <div id="group-rows" class="group-rows"></div>
+                        <button id="add-group-btn" class="btn add-group" type="button">+ Add group</button>
+                        <div class="inline group-footer">
+                            <span class="muted">Your own colours are used as-is in both light and dark mode.</span>
+                            <button id="reset-groups-btn" class="link-btn" type="button">Reset groups</button>
+                        </div>
+                    </details>
+                </div>
+            </details>
+
+            <details class="customize section-details" id="customize-section">
+                <summary><h2 id="customize-title">Customisation</h2><span class="summary-note">boxes, colours &amp; positions</span></summary>
+                <div class="link-actions section-actions">
+                    <button id="reset-positions-btn" class="link-btn" type="button" disabled>Reset layout</button>
+                    <button id="reset-colors-btn" class="link-btn" type="button" disabled>Reset colors</button>
+                </div>
+                <p class="hint">Drag a box in the chart to move it. It snaps into line with other boxes; hold <kbd>Alt</kbd> to move it freely. Click a box, or a name below, to change its color.</p>
+
+                <div id="color-editor" class="color-editor" hidden>
+                    <div class="editor-title">
+                        <span id="editor-swatch" class="dot"></span>
+                        <strong id="editor-name"></strong>
+                    </div>
+                    <div id="group-colour-part">
+                        <div class="editor-label">Group colour</div>
+                        <div id="group-swatches" class="swatches" role="radiogroup" aria-label="Group"></div>
+                        <p id="group-note" class="muted editor-note"></p>
+                    </div>
+
+                    <div class="editor-label">Individual colour</div>
+                    <div id="swatches" class="swatches" role="radiogroup" aria-label="Individual colour"></div>
+                    <div class="editor-row">
+                        <label class="field">
+                            <span>Custom</span>
+                            <input type="color" id="custom-color" />
+                        </label>
+                        <button id="reset-node-color" class="link-btn" type="button">Default color</button>
+                        <button id="reset-node-position" class="link-btn" type="button">Default position</button>
+                    </div>
+
+                    <div class="editor-label">Label</div>
+                    <div class="form-grid">
+                        <label for="node-label-text">Text</label>
+                        <input type="text" id="node-label-text" class="text-input" autocomplete="off" />
+                        <label for="node-label-placement">Position</label>
+                        <select id="node-label-placement">
+                            <option value="">Same as all labels</option>
+                            <option value="auto">Auto</option>
+                            <option value="left">Left</option>
+                            <option value="right">Right</option>
+                            <option value="above">Above</option>
+                            <option value="below">Below</option>
+                            <option value="hidden">Hidden</option>
+                        </select>
+                    </div>
+                    <div class="editor-row">
+                        <button id="reset-node-label" class="link-btn" type="button">Default label</button>
+                    </div>
+                </div>
+
+                <ul id="node-list" class="node-list"></ul>
+            </details>
+
+            <details class="customize section-details" id="labels-section">
+                <summary><h2 id="labels-title">Labels</h2><span class="summary-note">font, values &amp; symbols</span></summary>
+                <div class="link-actions section-actions">
+                    <button id="reset-labels-btn" class="link-btn" type="button">Reset labels</button>
+                </div>
+                <p class="hint">These apply to every label. Drag a label in the chart to fine-tune where it sits; select a box above to rename or reposition just its label.</p>
+
+                <div class="form-grid">
+                    <label for="label-font">Font</label>
+                    <div class="inline">
+                        <select id="label-font"></select>
+                        <input type="number" id="label-size" class="num-input" min="8" max="28" step="1" aria-label="Font size" title="Font size" />
+                        <span class="muted">pt</span>
+                    </div>
+
+                    <span>Style</span>
+                    <div class="inline">
+                        <label class="check"><input type="checkbox" id="label-bold" /> <span>Bold names</span></label>
+                        <input type="color" id="label-color" aria-label="Label color" title="Label color" />
+                        <button id="label-color-auto" class="link-btn" type="button">Auto color</button>
+                    </div>
+
+                    <label for="label-placement">Position</label>
+                    <select id="label-placement">
+                        <option value="auto">Auto (facing the middle)</option>
+                        <option value="left">Left</option>
+                        <option value="right">Right</option>
+                        <option value="above">Above</option>
+                        <option value="below">Below</option>
+                        <option value="hidden">Hidden</option>
+                    </select>
+
+                    <label for="value-mode">Values</label>
+                    <select id="value-mode">
+                        <option value="number">Numbers</option>
+                        <option value="percent">Percent of total</option>
+                        <option value="both">Number and percent</option>
+                        <option value="none">Hidden</option>
+                    </select>
+
+                    <label for="value-layout">Value</label>
+                    <select id="value-layout">
+                        <option value="below">Under the name</option>
+                        <option value="inline">After the name</option>
+                    </select>
+
+                    <label for="value-decimals">Decimals</label>
+                    <select id="value-decimals">
+                        <option value="">Auto</option>
+                        <option value="0">0</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+
+                    <span>Symbols</span>
+                    <div class="inline">
+                        <input type="text" id="value-prefix" class="text-input short" placeholder="Before" aria-label="Symbol before numbers" maxlength="6" autocomplete="off" />
+                        <span class="muted">1,234</span>
+                        <input type="text" id="value-suffix" class="text-input short" placeholder="After" aria-label="Symbol after numbers" maxlength="10" autocomplete="off" />
+                    </div>
+
+                    <span></span>
+                    <div class="chips" id="symbol-chips" aria-label="Quick symbols">
+                        <button type="button" class="chip" data-prefix="$">$</button>
+                        <button type="button" class="chip" data-prefix="€">€</button>
+                        <button type="button" class="chip" data-prefix="£">£</button>
+                        <button type="button" class="chip" data-prefix="¥">¥</button>
+                        <button type="button" class="chip" data-prefix="₹">₹</button>
+                        <button type="button" class="chip" data-suffix=" k">k</button>
+                        <button type="button" class="chip" data-suffix=" M">M</button>
+                        <button type="button" class="chip" data-suffix=" kg">kg</button>
+                        <button type="button" class="chip" data-suffix=" kWh">kWh</button>
+                        <button type="button" class="chip" data-prefix="" data-suffix="">None</button>
+                    </div>
+
+                    <span>Preview</span>
+                    <div id="label-preview" class="preview"></div>
+                </div>
+            </details>
+        </section>
+        </div>
+
+        <div id="panel-data" class="tab-panel" role="tabpanel" aria-labelledby="tab-data" hidden>
+            <!-- Only while no data is loaded (excel.ts hides it once a chart has data). -->
+            <section id="sample-section" class="sample-section" aria-labelledby="sample-title">
+                <h2 id="sample-title">Sample data</h2>
+                <div class="inline sample-row">
+                    <!-- One sample per Style theme subject; filled in by excel.ts -->
+                    <select id="sample-select" aria-label="Sample data subject"></select>
+                    <button id="sample-btn" class="btn" type="button">Insert sample data</button>
+                </div>
+                <p class="fine">Writes an example table at the selected cell and switches the Style theme to match. The cells must be empty.</p>
+            </section>
+
+            <section class="table-view" aria-labelledby="flows-title">
+                <h2 id="flows-title">Flows table</h2>
+                <!-- Where the chart's data comes from, and how many flows it has. -->
+                <div class="chart-meta" id="chart-meta" hidden>
+                    <span id="source-address"></span>
+                    <span id="totals"></span>
+                </div>
+                <!-- Lists each box whose in and out differ; the table below marks them in amber. -->
+                <div id="data-gaps" class="data-gaps" role="note" hidden></div>
+                <p id="flows-empty" class="hint">No data loaded yet. Pick a table or use Load selected cells above.</p>
+                <div class="table-wrap" id="flows-wrap" hidden>
+                    <table id="flow-table"></table>
+                </div>
+            </section>
+        </div>
+
+        <div id="panel-memory" class="tab-panel" role="tabpanel" aria-labelledby="tab-memory" hidden>
+            <section class="memory-view" aria-labelledby="memory-title">
+                <h2 id="memory-title">Saved diagrams</h2>
+                <p class="hint">Diagrams saved in this workbook with <b>Save</b>: each one's data (a table or a range of cells) and its colours, groups, labels and other settings. Open one to load it.</p>
+                <p id="memory-empty" class="hint memory-empty">Nothing saved yet. Load some data, then click <b>Save</b>.</p>
+                <ul id="memory-list" class="memory-list" hidden></ul>
+            </section>
+        </div>
+    </main>
+</body>
+
+</html>
