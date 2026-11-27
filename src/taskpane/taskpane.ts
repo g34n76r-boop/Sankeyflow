@@ -1741,20 +1741,18 @@ const chevron = (d: string) =>
 const CHEVRON_UP = chevron("M4 10 L8 6 L12 10");
 const CHEVRON_DOWN = chevron("M4 6 L8 10 L12 6");
 
-/** More account rows than this, and the summary table can be collapsed. */
-const SUMMARY_COLLAPSE_AFTER = 4;
 /** The summary table is collapsed (the default); it stays that way through redraws until you toggle it. */
 let summaryCollapsed = true;
 
 /**
- * Shows the collapse button when there are more than 4 account rows, and in
- * the collapsed state hides the balanced account rows (the Total row and any
- * row with a difference stay visible).
+ * Collapsed, the summary hides its balanced account rows (the Total row and
+ * any row with a difference stay visible). The collapse button shows whenever
+ * that would hide something: when at least one account row is balanced.
  */
 function applySummaryCollapse() {
   const rows = Array.from($("stage-rows").querySelectorAll<HTMLTableRowElement>("tr"));
   const toggle = $<HTMLButtonElement>("stage-toggle");
-  const canCollapse = rows.length > SUMMARY_COLLAPSE_AFTER;
+  const canCollapse = rows.some((tr) => tr.dataset.balanced === "true");
   const collapsed = canCollapse && summaryCollapsed;
   toggle.hidden = !canCollapse;
   for (const tr of rows) tr.hidden = collapsed && tr.dataset.balanced === "true";
